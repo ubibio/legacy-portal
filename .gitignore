@@ -3,3 +3,7 @@ target/
 .idea/
 *.log
 .tmp/
+
+# Claude Code 개인 설정 · 투두가드 세션 기록 (PC마다 다름 - 커밋하지 않음)
+.claude/settings.local.json
+.claude/todo-guard/
