@@ -36,16 +36,16 @@ import java.util.List;
 @Service
 public class ApprovalService {
 
-    private final ApprovalRepository repo;
-    private final UserRepository userRepo;
+    private final ApprovalRepository approvalRepository;   // [이름 개선] repo → approvalRepository (어떤 저장소인지 드러냄)
+    private final UserRepository userRepository;   // [이름 개선] userRepo → userRepository (약어 제거)
 
     // [스멜5] 강결합 — 협력 객체를 생성자 주입 없이 직접 new 한다. 테스트에서 갈아끼울 수 없다.
     private final SmtpMailSender mail = new SmtpMailSender();
     private final FileAuditLogger audit = new FileAuditLogger();
 
-    public ApprovalService(ApprovalRepository repo, UserRepository userRepo) {
-        this.repo = repo;
-        this.userRepo = userRepo;
+    public ApprovalService(ApprovalRepository approvalRepository, UserRepository userRepository) {
+        this.approvalRepository = approvalRepository;
+        this.userRepository = userRepository;
     }
 
     // [스멜8] 파라미터 8개. [스멜9] 이름이 모호하다.
@@ -62,7 +62,7 @@ public class ApprovalService {
         approval.setAmount(amount);
         approval.setCreatedAt(LocalDateTime.now());
         approval.setUpdatedAt(LocalDateTime.now());
-        repo.save(approval);
+        approvalRepository.save(approval);
 
         // [스멜4] 감사 로그 기록 — 이 6줄이 submit/approve/reject/cancel 에도 복붙 되어 있다.
         String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
@@ -85,11 +85,11 @@ public class ApprovalService {
      */
     public void processApproval(Long id, Long userId, int action, String reason) {
         // [이름 개선] d → approval, u → requester (레거시 약어를 그대로 옮기지 않음)
-        Approval approval = repo.findById(id).orElse(null);
+        Approval approval = approvalRepository.findById(id).orElse(null);
         if (approval == null) {
             return;   // [보존] 없는 결재 id - 예외 대신 조용히 리턴 (레거시 동작)
         }
-        User requester = userRepo.findById(userId).orElse(null);
+        User requester = userRepository.findById(userId).orElse(null);
         if (requester == null) {
             return;   // [보존] 없는 사용자 - 조용히 리턴 (레거시 동작)
         }
@@ -121,10 +121,10 @@ public class ApprovalService {
         }
         approval.changeStatus(ApprovalStatus.SUBMITTED);   // [enum 전환] setStatus(1) → SUBMITTED
         approval.setUpdatedAt(LocalDateTime.now());
-        repo.save(approval);
+        approvalRepository.save(approval);
 
         // [보존] 결재자에게 [결재요청] 메일 - 결재자가 없으면 생략. 본문 문자열 1글자도 바꾸지 않음
-        User approver = userRepo.findById(approval.getApproverId()).orElse(null);
+        User approver = userRepository.findById(approval.getApproverId()).orElse(null);
         if (approver != null) {
             String body = "안녕하세요 " + approver.getName() + "님,\n"
                     + "결재 요청이 도착했습니다.\n제목: " + approval.getTitle()
@@ -150,10 +150,10 @@ public class ApprovalService {
         }
         approval.changeStatus(ApprovalStatus.APPROVED);   // [enum 전환] setStatus(2) → APPROVED
         approval.setUpdatedAt(LocalDateTime.now());
-        repo.save(approval);
+        approvalRepository.save(approval);
 
         // [보존] 기안자에게 [결재승인] 메일 - 기안자가 없으면 생략
-        User drafter = userRepo.findById(approval.getDrafterId()).orElse(null);
+        User drafter = userRepository.findById(approval.getDrafterId()).orElse(null);
         if (drafter != null) {
             String body = "안녕하세요 " + drafter.getName() + "님,\n"
                     + "결재가 승인되었습니다.\n제목: " + approval.getTitle();
@@ -180,10 +180,10 @@ public class ApprovalService {
         approval.changeStatus(ApprovalStatus.REJECTED);   // [enum 전환] setStatus(3) → REJECTED
         approval.setRejectReason(reason);
         approval.setUpdatedAt(LocalDateTime.now());
-        repo.save(approval);
+        approvalRepository.save(approval);
 
         // [보존] 기안자에게 [결재반려] 메일(사유 포함) - 기안자가 없으면 생략
-        User drafter = userRepo.findById(approval.getDrafterId()).orElse(null);
+        User drafter = userRepository.findById(approval.getDrafterId()).orElse(null);
         if (drafter != null) {
             String body = "안녕하세요 " + drafter.getName() + "님,\n"
                     + "결재가 반려되었습니다.\n제목: " + approval.getTitle()
@@ -207,7 +207,7 @@ public class ApprovalService {
         }
         approval.changeStatus(ApprovalStatus.CANCELED);   // [enum 전환] setStatus(9) → CANCELED (DB 에는 9 그대로)
         approval.setUpdatedAt(LocalDateTime.now());
-        repo.save(approval);
+        approvalRepository.save(approval);
         writeAudit("APPROVAL CANCEL", approval.getId(), requesterId);
     }
 
@@ -240,10 +240,10 @@ public class ApprovalService {
     }
 
     public List<Approval> myDrafts(Long userId) {
-        return repo.findByDrafterId(userId);
+        return approvalRepository.findByDrafterId(userId);
     }
 
     public List<Approval> myInbox(Long userId) {
-        return repo.findByApproverId(userId);
+        return approvalRepository.findByApproverId(userId);
     }
 }
