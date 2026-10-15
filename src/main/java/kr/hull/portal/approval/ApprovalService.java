@@ -220,14 +220,14 @@ public class ApprovalService {
     // [스멜1][스멜10] 화면 표시용 문자열까지 서비스가 만든다. 주석으로 매직넘버를 변명한다.
     public String statusLabel(Approval approval) {   // [이름 개선] 파라미터 d → approval (호출부 영향 없음)
         int status = approval.getStatus();   // [이름 개선] s → status. 값: 0 임시저장·1 상신·2 승인·3 반려·9 취소
-        String tmp;          // tmp = 결과 라벨(반환할 상태 표시 문자열)  [스멜9: 임시? 의도가 안 드러남]
-        if (status == 0) tmp = "임시저장";       // status 0~9 를 라벨로 번역 — 이 표가 곳곳에 중복
-        else if (status == 1) tmp = "상신";
-        else if (status == 2) tmp = "승인";
-        else if (status == 3) tmp = "반려";
-        else if (status == 9) tmp = "취소";
-        else tmp = "알수없음";              // enum 이면 컴파일러가 막아줄 분기
-        return tmp;
+        String statusLabel;   // [이름 개선] tmp → statusLabel (레거시: '임시?' 이름이라 반환할 상태 표시 문자열이라는 의도가 안 드러났음)
+        if (status == 0) statusLabel = "임시저장";       // status 0~9 를 라벨로 번역 — 이 표가 곳곳에 중복
+        else if (status == 1) statusLabel = "상신";
+        else if (status == 2) statusLabel = "승인";
+        else if (status == 3) statusLabel = "반려";
+        else if (status == 9) statusLabel = "취소";
+        else statusLabel = "알수없음";              // enum 이면 컴파일러가 막아줄 분기
+        return statusLabel;
     }
 
     // [스멜6] Feature Envy — Approval 데이터를 꺼내 금액 등급을 서비스가 계산.
