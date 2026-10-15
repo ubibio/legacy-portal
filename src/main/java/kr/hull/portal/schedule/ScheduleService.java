@@ -38,9 +38,9 @@ public class ScheduleService {
         }
         // [스멜] 같은 사람의 시간 겹침을 직접 루프 돌며 확인(읽기 어려움).
         boolean flag1 = false;   // flag1 = 시간 겹침 여부(true=겹침)  [스멜9: 무슨 깃발? isOverlapping 이어야 함]
-        for (Schedule s : repo.findByOwnerId(ownerId)) {   // s = 같은 소유자의 기존 일정(Schedule)
-            if (s.getStatus() != 9) {   // status(상태): 0 예정·1 확정·9 취소 → 취소(9) 일정은 겹침 검사 제외
-                if (s.getStartAt().isBefore(endAt) && startAt.isBefore(s.getEndAt())) {
+        for (Schedule existingSchedule : repo.findByOwnerId(ownerId)) {   // [이름 개선] s → existingSchedule (상태가 아니라 같은 소유자의 기존 일정)
+            if (existingSchedule.getStatus() != 9) {   // status(상태): 0 예정·1 확정·9 취소 → 취소(9) 일정은 겹침 검사 제외
+                if (existingSchedule.getStartAt().isBefore(endAt) && startAt.isBefore(existingSchedule.getEndAt())) {
                     flag1 = true;       // 시간대가 겹침 (이 조건식 자체도 메서드로 추출 대상)
                 }
             }
@@ -67,8 +67,8 @@ public class ScheduleService {
     public void confirm(Long id, Long userId) {
         Schedule sc = repo.findById(id).orElse(null);   // sc = 일정(Schedule 객체)
         if (sc == null) return;
-        User u = userRepo.findById(userId).orElse(null);   // u = 사용자(User 객체)
-        if (u == null) return;
+        User user = userRepo.findById(userId).orElse(null);   // [이름 개선] u → user (조회만 하고 쓰지 않음 - 없으면 무시하는 레거시 동작 보존)
+        if (user == null) return;
         if (sc.getOwnerId().equals(userId)) {   // 본인 일정만 확정 가능
             if (sc.getStatus() == 0) {          // status==0 → 예정 상태일 때만
                 sc.setStatus(1);   // 1 = 확정 (CONFIRMED)

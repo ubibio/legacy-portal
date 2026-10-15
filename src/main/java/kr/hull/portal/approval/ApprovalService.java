@@ -51,25 +51,25 @@ public class ApprovalService {
     // [스멜8] 파라미터 8개. [스멜9] 이름이 모호하다.
     public Approval create(String title, String content, int type, int priority,
                            Long drafterId, Long approverId, long amount, boolean urgent) {
-        Approval d = new Approval();   // d = 결재 문서(Approval 객체)  [스멜9: document? draft? 약어라 의미 불명]
-        d.setTitle(title);
-        d.setContent(content);
-        d.setType(type);
-        d.setPriority(urgent ? 3 : priority);   // priority(우선순위): 1 낮음·2 보통·3 높음  [스멜3: 3=높음, 왜 3이 높음? 코드만 봐선 모름]
-        d.setStatus(0);                          // status(상태): 0 임시저장·1 상신·2 승인·3 반려·9 취소  [스멜3: 0=임시저장, DRAFT 대신 숫자 0]
-        d.setDrafterId(drafterId);
-        d.setApproverId(approverId);
-        d.setAmount(amount);
-        d.setCreatedAt(LocalDateTime.now());
-        d.setUpdatedAt(LocalDateTime.now());
-        repo.save(d);
+        Approval approval = new Approval();   // [이름 개선] d → approval (레거시: 약어라 document? draft? 의미 불명)
+        approval.setTitle(title);
+        approval.setContent(content);
+        approval.setType(type);
+        approval.setPriority(urgent ? 3 : priority);   // priority(우선순위): 1 낮음·2 보통·3 높음  [스멜3: 3=높음, 왜 3이 높음? 코드만 봐선 모름]
+        approval.setStatus(0);                          // status(상태): 0 임시저장·1 상신·2 승인·3 반려·9 취소  [스멜3: 0=임시저장, DRAFT 대신 숫자 0]
+        approval.setDrafterId(drafterId);
+        approval.setApproverId(approverId);
+        approval.setAmount(amount);
+        approval.setCreatedAt(LocalDateTime.now());
+        approval.setUpdatedAt(LocalDateTime.now());
+        repo.save(approval);
 
         // [스멜4] 감사 로그 기록 — 이 6줄이 submit/approve/reject/cancel 에도 복붙 되어 있다.
         String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        String line = "[" + now + "] APPROVAL CREATE id=" + d.getId()
-                + " by=" + drafterId + " type=" + d.getType();
+        String line = "[" + now + "] APPROVAL CREATE id=" + approval.getId()
+                + " by=" + drafterId + " type=" + approval.getType();
         audit.write(line);
-        return d;
+        return approval;
     }
 
     /**
@@ -218,21 +218,21 @@ public class ApprovalService {
     }
 
     // [스멜1][스멜10] 화면 표시용 문자열까지 서비스가 만든다. 주석으로 매직넘버를 변명한다.
-    public String statusLabel(Approval d) {
-        int s = d.getStatus();   // s = status(상태): 0 임시저장·1 상신·2 승인·3 반려·9 취소
+    public String statusLabel(Approval approval) {   // [이름 개선] 파라미터 d → approval (호출부 영향 없음)
+        int status = approval.getStatus();   // [이름 개선] s → status. 값: 0 임시저장·1 상신·2 승인·3 반려·9 취소
         String tmp;          // tmp = 결과 라벨(반환할 상태 표시 문자열)  [스멜9: 임시? 의도가 안 드러남]
-        if (s == 0) tmp = "임시저장";       // status 0~9 를 라벨로 번역 — 이 표가 곳곳에 중복
-        else if (s == 1) tmp = "상신";
-        else if (s == 2) tmp = "승인";
-        else if (s == 3) tmp = "반려";
-        else if (s == 9) tmp = "취소";
+        if (status == 0) tmp = "임시저장";       // status 0~9 를 라벨로 번역 — 이 표가 곳곳에 중복
+        else if (status == 1) tmp = "상신";
+        else if (status == 2) tmp = "승인";
+        else if (status == 3) tmp = "반려";
+        else if (status == 9) tmp = "취소";
         else tmp = "알수없음";              // enum 이면 컴파일러가 막아줄 분기
         return tmp;
     }
 
     // [스멜6] Feature Envy — Approval 데이터를 꺼내 금액 등급을 서비스가 계산.
-    public String amountGrade(Approval d) {
-        long a = d.getAmount();   // a = amount(금액, 원)  [스멜9: 한 글자 약어]
+    public String amountGrade(Approval approval) {   // [이름 개선] 파라미터 d → approval (호출부 영향 없음)
+        long a = approval.getAmount();   // a = amount(금액, 원)  [스멜9: 한 글자 약어]
         if (a >= 10000000) return "S";   // [스멜3] 1000만원=S — 기준 숫자의 의미가 코드에 없음
         else if (a >= 1000000) return "A";   // 100만원=A
         else if (a >= 100000) return "B";    // 10만원=B
