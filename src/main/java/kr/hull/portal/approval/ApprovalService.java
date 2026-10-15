@@ -56,7 +56,7 @@ public class ApprovalService {
         approval.setContent(content);
         approval.setType(type);
         approval.setPriority(urgent ? 3 : priority);   // priority(우선순위): 1 낮음·2 보통·3 높음  [스멜3: 3=높음, 왜 3이 높음? 코드만 봐선 모름]
-        approval.setStatus(0);                          // status(상태): 0 임시저장·1 상신·2 승인·3 반려·9 취소  [스멜3: 0=임시저장, DRAFT 대신 숫자 0]
+        approval.changeStatus(ApprovalStatus.DRAFT);   // [enum 전환] setStatus(0) → DRAFT (DB 에는 0 그대로 저장)
         approval.setDrafterId(drafterId);
         approval.setApproverId(approverId);
         approval.setAmount(amount);
@@ -112,14 +112,14 @@ public class ApprovalService {
      * 상신: 임시저장(0)일 때만. 요청자가 기안자인지는 검사하지 않는다(레거시 동작 보존 - 재설계 단계 결함 후보).
      */
     private void submit(Approval approval, Long requesterId) {
-        if (approval.getStatus() != 0) {   // [상태 전이 가드] 임시저장(0)일 때만 상신 - 아니면 조용히 무시(레거시 동작 보존)
+        if (approval.approvalStatus() != ApprovalStatus.DRAFT) {   // [상태 전이 가드] 임시저장일 때만 상신 - 아니면 조용히 무시(레거시 동작 보존). [enum 전환] != 0 → != DRAFT
             return;
         }
         // [보존] 지출(type 1) · 100만원 이상이면 상신 시 우선순위를 3(높음)으로 상향
         if (approval.getType() == 1 && approval.getAmount() >= 1000000) {
             approval.setPriority(3);
         }
-        approval.setStatus(1);   // 1 = 상신 (SUBMITTED)
+        approval.changeStatus(ApprovalStatus.SUBMITTED);   // [enum 전환] setStatus(1) → SUBMITTED
         approval.setUpdatedAt(LocalDateTime.now());
         repo.save(approval);
 
@@ -139,7 +139,7 @@ public class ApprovalService {
      * 승인: 상신(1) 상태 + 요청자가 지정된 결재자 + 팀장 이상(role >= 2) 일 때만.
      */
     private void approve(Approval approval, User requester, Long requesterId) {
-        if (approval.getStatus() != 1) {   // [상태 전이 가드] 상신(1)일 때만 - 아니면 조용히 무시(재승인도 여기서 무시)
+        if (approval.approvalStatus() != ApprovalStatus.SUBMITTED) {   // [상태 전이 가드] 상신일 때만 - 아니면 조용히 무시(재승인도 여기서 무시). [enum 전환] != 1 → != SUBMITTED
             return;
         }
         if (approval.getApproverId() == null || !approval.getApproverId().equals(requesterId)) {
@@ -148,7 +148,7 @@ public class ApprovalService {
         if (requester.getRole() < 2) {   // role 1=사원·2=팀장·3=임원 → 팀장 미만이면 조용히 무시
             return;
         }
-        approval.setStatus(2);   // 2 = 승인 (APPROVED)
+        approval.changeStatus(ApprovalStatus.APPROVED);   // [enum 전환] setStatus(2) → APPROVED
         approval.setUpdatedAt(LocalDateTime.now());
         repo.save(approval);
 
@@ -168,7 +168,7 @@ public class ApprovalService {
      * [개선 예정] 승인과 전제조건 3줄이 중복 → 백로그 R09 에서 Approval · User 의 판정 메서드로 이동.
      */
     private void reject(Approval approval, User requester, Long requesterId, String reason) {
-        if (approval.getStatus() != 1) {   // [상태 전이 가드] 상신(1)일 때만 반려 - 아니면 조용히 무시
+        if (approval.approvalStatus() != ApprovalStatus.SUBMITTED) {   // [상태 전이 가드] 상신일 때만 반려 - 아니면 조용히 무시. [enum 전환] != 1 → != SUBMITTED
             return;
         }
         if (approval.getApproverId() == null || !approval.getApproverId().equals(requesterId)) {
@@ -177,7 +177,7 @@ public class ApprovalService {
         if (requester.getRole() < 2) {   // 팀장(2) 미만이면 조용히 무시
             return;
         }
-        approval.setStatus(3);   // 3 = 반려 (REJECTED)
+        approval.changeStatus(ApprovalStatus.REJECTED);   // [enum 전환] setStatus(3) → REJECTED
         approval.setRejectReason(reason);
         approval.setUpdatedAt(LocalDateTime.now());
         repo.save(approval);
@@ -198,14 +198,14 @@ public class ApprovalService {
      * 취소: 임시저장(0) 또는 상신(1) + 요청자가 기안자 본인일 때만. 역할(role)은 보지 않고 메일도 보내지 않는다(레거시 동작 보존).
      */
     private void cancel(Approval approval, Long requesterId) {
-        int status = approval.getStatus();   // [이름 개선] s → status
-        if (status != 0 && status != 1) {    // [상태 전이 가드] 승인 전(0·1)일 때만 취소 - 아니면 조용히 무시
+        ApprovalStatus status = approval.approvalStatus();   // [이름 개선] s → status. [enum 전환] int → ApprovalStatus
+        if (status != ApprovalStatus.DRAFT && status != ApprovalStatus.SUBMITTED) {    // [상태 전이 가드] 승인 전(임시저장·상신)일 때만 취소 - 아니면 조용히 무시
             return;
         }
         if (approval.getDrafterId() == null || !approval.getDrafterId().equals(requesterId)) {
             return;   // [권한 가드] 기안자 본인이 아니면 조용히 무시
         }
-        approval.setStatus(9);   // 9 = 취소 (CANCELED)
+        approval.changeStatus(ApprovalStatus.CANCELED);   // [enum 전환] setStatus(9) → CANCELED (DB 에는 9 그대로)
         approval.setUpdatedAt(LocalDateTime.now());
         repo.save(approval);
         writeAudit("APPROVAL CANCEL", approval.getId(), requesterId);
@@ -219,14 +219,14 @@ public class ApprovalService {
 
     // [스멜1][스멜10] 화면 표시용 문자열까지 서비스가 만든다. 주석으로 매직넘버를 변명한다.
     public String statusLabel(Approval approval) {   // [이름 개선] 파라미터 d → approval (호출부 영향 없음)
-        int status = approval.getStatus();   // [이름 개선] s → status. 값: 0 임시저장·1 상신·2 승인·3 반려·9 취소
+        ApprovalStatus status = approval.approvalStatus();   // [이름 개선] s → status. [enum 전환] int → ApprovalStatus
         String statusLabel;   // [이름 개선] tmp → statusLabel (레거시: '임시?' 이름이라 반환할 상태 표시 문자열이라는 의도가 안 드러났음)
-        if (status == 0) statusLabel = "임시저장";       // status 0~9 를 라벨로 번역 — 이 표가 곳곳에 중복
-        else if (status == 1) statusLabel = "상신";
-        else if (status == 2) statusLabel = "승인";
-        else if (status == 3) statusLabel = "반려";
-        else if (status == 9) statusLabel = "취소";
-        else statusLabel = "알수없음";              // enum 이면 컴파일러가 막아줄 분기
+        if (status == ApprovalStatus.DRAFT) statusLabel = "임시저장";       // [enum 전환] 숫자 비교 → enum 비교. 라벨 문자열은 그대로
+        else if (status == ApprovalStatus.SUBMITTED) statusLabel = "상신";
+        else if (status == ApprovalStatus.APPROVED) statusLabel = "승인";
+        else if (status == ApprovalStatus.REJECTED) statusLabel = "반려";
+        else if (status == ApprovalStatus.CANCELED) statusLabel = "취소";
+        else statusLabel = "알수없음";              // [보존] 레거시 기본값 분기. enum 에선 null 일 때만 도달 [개선 예정: 라벨을 enum 으로 → R06]
         return statusLabel;
     }
 
