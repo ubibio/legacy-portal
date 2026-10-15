@@ -26,6 +26,12 @@ import java.util.List;
  * 10. Comment Smell        : 나쁜 이름을 주석으로 변명한다.
  * 11. No Tests             : 테스트가 단 한 개도 없다(안전망 부재).
  * =================================================================================
+ *
+ * [리팩토링] 레거시 processApproval(86줄 · 중첩 5단계) → submit/approve/reject/cancel 로 위임 (메서드 추출 · 조기 반환)
+ *   - 해결: 스멜2(Long Method), 스멜9 일부(d·u·s·proc 이름 개선). 백로그 R08
+ *   - 보존: public 시그니처, 상태 전이 조건 · 결과, 조용히 무시하는 동작, 메일 · 감사로그 문자열
+ *   - 남은 것: 매직넘버(스멜3 → R06), 직접 new(스멜5 → R02·R03), 승인·반려 전제조건 중복(→ R09)
+ *   - 검증: ApprovalServiceTest 특성화 테스트 6개 본문 수정 없이 green
  */
 @Service
 public class ApprovalService {
@@ -68,95 +74,141 @@ public class ApprovalService {
 
     /**
      * 결재 처리 — 상신/승인/반려/취소를 action 코드로 분기한다.
-     * [스멜2] 이 메서드 하나가 모든 일을 한다. [스멜1][스멜6] 규칙 계산을 서비스가 떠안는다.
+     *
+     * [리팩토링] 레거시 86줄 · 중첩 5단계 if-지옥 → action 별 private 메서드(submit/approve/reject/cancel)로 위임
+     *   (기법: 메서드 추출 + 조기 반환(Guard Clause) · 이유: 한 메서드가 상태 전이 4종을 모두 떠안아 읽기·검증이 어려웠음)
+     * [보존] public 시그니처 processApproval(id, userId, action, reason) 그대로. 정의되지 않은 action(4~8 등)은
+     *   어느 분기에도 걸리지 않아 조용히 무시(레거시 동작 보존).
+     * [개선 예정] action · status 숫자는 아직 매직넘버 → 백로그 R06 에서 enum(@Convert, DB 정수 유지)으로.
      *
      * action: 1=상신, 2=승인, 3=반려, 9=취소
      */
     public void processApproval(Long id, Long userId, int action, String reason) {
-        Approval d = repo.findById(id).orElse(null);   // d = 결재 문서(Approval 객체)
-        if (d == null) {
-            // [스멜] 예외 대신 조용히 리턴 — 호출자는 실패를 알 수 없다.
-            return;
+        // [이름 개선] d → approval, u → requester (레거시 약어를 그대로 옮기지 않음)
+        Approval approval = repo.findById(id).orElse(null);
+        if (approval == null) {
+            return;   // [보존] 없는 결재 id - 예외 대신 조용히 리턴 (레거시 동작)
         }
-        User u = userRepo.findById(userId).orElse(null);   // u = 사용자(User 객체)
-        if (u == null) {
-            return;
+        User requester = userRepo.findById(userId).orElse(null);
+        if (requester == null) {
+            return;   // [보존] 없는 사용자 - 조용히 리턴 (레거시 동작)
         }
 
-        int s = d.getStatus();     // s = status(상태): 0 임시저장·1 상신·2 승인·3 반려·9 취소  [스멜9: 한 글자라 의미 불명]
-        int proc = action;          // proc = action(처리 구분): 1 상신·2 승인·3 반려·9 취소  [스멜9: action 을 다른 약어로 또 담음, 의미 없음]
-
-        // [스멜2][스멜3] 거대한 if-지옥. 상태 전이 규칙이 숫자 비교로 흩어져 있다.
-        if (proc == 1) {            // proc==1 → 상신 (숫자 1을 외워야 의미를 앎)
-            // 상신: 임시저장(0)일 때만 가능
-            if (s == 0) {           // s==0 → 임시저장 상태일 때만
-                // [스멜6] 금액 기준 결재자 자동 상향 — 도메인 규칙이 서비스에 박혀 있다.
-                if (d.getType() == 1 && d.getAmount() >= 1000000) {   // type 1=지출·2=휴가·3=구매·4=기타 → type==1(지출) && 100만원↑
-                    d.setPriority(3);   // 3 = 높음
-                }
-                d.setStatus(1);   // 1 = 상신 (SUBMITTED)
-                d.setUpdatedAt(LocalDateTime.now());
-                repo.save(d);
-                // [스멜4] 메일 발송 — 본문 생성 로직이 곳곳에 복붙.
-                User approver = userRepo.findById(d.getApproverId()).orElse(null);
-                if (approver != null) {
-                    String body = "안녕하세요 " + approver.getName() + "님,\n"
-                            + "결재 요청이 도착했습니다.\n제목: " + d.getTitle()
-                            + "\n기안자ID: " + d.getDrafterId();
-                    mail.send(approver.getEmail(), "[결재요청] " + d.getTitle(), body);
-                }
-                writeAudit("APPROVAL SUBMIT", d.getId(), userId);
-            }
-        } else if (proc == 2) {     // proc==2 → 승인
-            // 승인: 상신(1) 상태 + 본인이 결재자 + 권한(role>=2) 일 때만
-            if (s == 1) {           // s==1 → 상신 상태일 때만 승인 가능
-                if (d.getApproverId() != null && d.getApproverId().equals(userId)) {
-                    if (u.getRole() >= 2) {   // role 1=사원·2=팀장·3=임원 (role>=2 승인권한)  [스멜3: 숫자로 권한 판정]
-                        d.setStatus(2);        // 2 = 승인 (APPROVED)
-                        d.setUpdatedAt(LocalDateTime.now());
-                        repo.save(d);
-                        // [스멜4] 또 복붙된 메일 발송
-                        User drafter = userRepo.findById(d.getDrafterId()).orElse(null);
-                        if (drafter != null) {
-                            String body = "안녕하세요 " + drafter.getName() + "님,\n"
-                                    + "결재가 승인되었습니다.\n제목: " + d.getTitle();
-                            mail.send(drafter.getEmail(), "[결재승인] " + d.getTitle(), body);
-                        }
-                        writeAudit("APPROVAL APPROVE", d.getId(), userId);
-                    }
-                }
-            }
-        } else if (proc == 3) {     // proc==3 → 반려
-            // 반려
-            if (s == 1) {           // s==1 → 상신 상태만 반려 가능
-                if (d.getApproverId() != null && d.getApproverId().equals(userId)) {
-                    if (u.getRole() >= 2) {   // role>=2 → 팀장 이상 (위 승인 분기와 똑같은 판정 복붙)
-                        d.setStatus(3);          // 3 = 반려 (REJECTED)
-                        d.setRejectReason(reason);
-                        d.setUpdatedAt(LocalDateTime.now());
-                        repo.save(d);
-                        User drafter = userRepo.findById(d.getDrafterId()).orElse(null);
-                        if (drafter != null) {
-                            String body = "안녕하세요 " + drafter.getName() + "님,\n"
-                                    + "결재가 반려되었습니다.\n제목: " + d.getTitle()
-                                    + "\n사유: " + reason;
-                            mail.send(drafter.getEmail(), "[결재반려] " + d.getTitle(), body);
-                        }
-                        writeAudit("APPROVAL REJECT", d.getId(), userId);
-                    }
-                }
-            }
-        } else if (proc == 9) {     // proc==9 → 취소 (왜 9? 4~8 은 비워둔 규칙 없는 번호)
-            // 취소: 기안자 본인 + 아직 승인 전(0 또는 1)
-            if (s == 0 || s == 1) {     // s==0(임시저장) 또는 s==1(상신)일 때만
-                if (d.getDrafterId() != null && d.getDrafterId().equals(userId)) {
-                    d.setStatus(9);   // 9 = 취소 (CANCELED)
-                    d.setUpdatedAt(LocalDateTime.now());
-                    repo.save(d);
-                    writeAudit("APPROVAL CANCEL", d.getId(), userId);
-                }
-            }
+        // [리팩토링] 레거시의 s(상태 복사) · proc(action 복사) 지역변수 제거 - 각 메서드가 approval 에서 직접 읽는다.
+        //   상태는 분기 전 어디서도 바뀌지 않으므로 읽는 시점이 달라도 결과는 같다.
+        if (action == 1) {            // 1 = 상신
+            submit(approval, userId);
+        } else if (action == 2) {     // 2 = 승인
+            approve(approval, requester, userId);
+        } else if (action == 3) {     // 3 = 반려
+            reject(approval, requester, userId, reason);
+        } else if (action == 9) {     // 9 = 취소
+            cancel(approval, userId);
         }
+    }
+
+    /**
+     * [리팩토링] 레거시 processApproval 의 action==1 분기를 추출 (메서드 추출 + 조기 반환).
+     * 상신: 임시저장(0)일 때만. 요청자가 기안자인지는 검사하지 않는다(레거시 동작 보존 - 재설계 단계 결함 후보).
+     */
+    private void submit(Approval approval, Long requesterId) {
+        if (approval.getStatus() != 0) {   // [상태 전이 가드] 임시저장(0)일 때만 상신 - 아니면 조용히 무시(레거시 동작 보존)
+            return;
+        }
+        // [보존] 지출(type 1) · 100만원 이상이면 상신 시 우선순위를 3(높음)으로 상향
+        if (approval.getType() == 1 && approval.getAmount() >= 1000000) {
+            approval.setPriority(3);
+        }
+        approval.setStatus(1);   // 1 = 상신 (SUBMITTED)
+        approval.setUpdatedAt(LocalDateTime.now());
+        repo.save(approval);
+
+        // [보존] 결재자에게 [결재요청] 메일 - 결재자가 없으면 생략. 본문 문자열 1글자도 바꾸지 않음
+        User approver = userRepo.findById(approval.getApproverId()).orElse(null);
+        if (approver != null) {
+            String body = "안녕하세요 " + approver.getName() + "님,\n"
+                    + "결재 요청이 도착했습니다.\n제목: " + approval.getTitle()
+                    + "\n기안자ID: " + approval.getDrafterId();
+            mail.send(approver.getEmail(), "[결재요청] " + approval.getTitle(), body);
+        }
+        writeAudit("APPROVAL SUBMIT", approval.getId(), requesterId);
+    }
+
+    /**
+     * [리팩토링] 레거시 processApproval 의 action==2 분기를 추출 (메서드 추출 + 조기 반환으로 중첩 3단계 → 0).
+     * 승인: 상신(1) 상태 + 요청자가 지정된 결재자 + 팀장 이상(role >= 2) 일 때만.
+     */
+    private void approve(Approval approval, User requester, Long requesterId) {
+        if (approval.getStatus() != 1) {   // [상태 전이 가드] 상신(1)일 때만 - 아니면 조용히 무시(재승인도 여기서 무시)
+            return;
+        }
+        if (approval.getApproverId() == null || !approval.getApproverId().equals(requesterId)) {
+            return;   // [권한 가드] 지정된 결재자 본인이 아니면 조용히 무시(레거시 동작 보존)
+        }
+        if (requester.getRole() < 2) {   // role 1=사원·2=팀장·3=임원 → 팀장 미만이면 조용히 무시
+            return;
+        }
+        approval.setStatus(2);   // 2 = 승인 (APPROVED)
+        approval.setUpdatedAt(LocalDateTime.now());
+        repo.save(approval);
+
+        // [보존] 기안자에게 [결재승인] 메일 - 기안자가 없으면 생략
+        User drafter = userRepo.findById(approval.getDrafterId()).orElse(null);
+        if (drafter != null) {
+            String body = "안녕하세요 " + drafter.getName() + "님,\n"
+                    + "결재가 승인되었습니다.\n제목: " + approval.getTitle();
+            mail.send(drafter.getEmail(), "[결재승인] " + approval.getTitle(), body);
+        }
+        writeAudit("APPROVAL APPROVE", approval.getId(), requesterId);
+    }
+
+    /**
+     * [리팩토링] 레거시 processApproval 의 action==3 분기를 추출 (메서드 추출 + 조기 반환).
+     * 반려: 승인과 같은 전제조건. 반려 사유는 검증 없이 그대로 저장(빈 문자열도 허용 - 레거시 동작 보존).
+     * [개선 예정] 승인과 전제조건 3줄이 중복 → 백로그 R09 에서 Approval · User 의 판정 메서드로 이동.
+     */
+    private void reject(Approval approval, User requester, Long requesterId, String reason) {
+        if (approval.getStatus() != 1) {   // [상태 전이 가드] 상신(1)일 때만 반려 - 아니면 조용히 무시
+            return;
+        }
+        if (approval.getApproverId() == null || !approval.getApproverId().equals(requesterId)) {
+            return;   // [권한 가드] 지정된 결재자 본인이 아니면 조용히 무시
+        }
+        if (requester.getRole() < 2) {   // 팀장(2) 미만이면 조용히 무시
+            return;
+        }
+        approval.setStatus(3);   // 3 = 반려 (REJECTED)
+        approval.setRejectReason(reason);
+        approval.setUpdatedAt(LocalDateTime.now());
+        repo.save(approval);
+
+        // [보존] 기안자에게 [결재반려] 메일(사유 포함) - 기안자가 없으면 생략
+        User drafter = userRepo.findById(approval.getDrafterId()).orElse(null);
+        if (drafter != null) {
+            String body = "안녕하세요 " + drafter.getName() + "님,\n"
+                    + "결재가 반려되었습니다.\n제목: " + approval.getTitle()
+                    + "\n사유: " + reason;
+            mail.send(drafter.getEmail(), "[결재반려] " + approval.getTitle(), body);
+        }
+        writeAudit("APPROVAL REJECT", approval.getId(), requesterId);
+    }
+
+    /**
+     * [리팩토링] 레거시 processApproval 의 action==9 분기를 추출 (메서드 추출 + 조기 반환).
+     * 취소: 임시저장(0) 또는 상신(1) + 요청자가 기안자 본인일 때만. 역할(role)은 보지 않고 메일도 보내지 않는다(레거시 동작 보존).
+     */
+    private void cancel(Approval approval, Long requesterId) {
+        int status = approval.getStatus();   // [이름 개선] s → status
+        if (status != 0 && status != 1) {    // [상태 전이 가드] 승인 전(0·1)일 때만 취소 - 아니면 조용히 무시
+            return;
+        }
+        if (approval.getDrafterId() == null || !approval.getDrafterId().equals(requesterId)) {
+            return;   // [권한 가드] 기안자 본인이 아니면 조용히 무시
+        }
+        approval.setStatus(9);   // 9 = 취소 (CANCELED)
+        approval.setUpdatedAt(LocalDateTime.now());
+        repo.save(approval);
+        writeAudit("APPROVAL CANCEL", approval.getId(), requesterId);
     }
 
     // [스멜4] 그나마 추출했지만 create() 안에는 또 복붙이 남아 있다(불완전한 중복 제거).
