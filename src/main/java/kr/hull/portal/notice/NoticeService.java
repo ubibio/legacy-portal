@@ -17,76 +17,77 @@ import java.time.LocalDateTime;
  * [리팩토링 R02 · R03] 레거시: new SmtpMailSender() · new FileAuditLogger() 직접 생성
  *   → MailSender · AuditLogger 인터페이스를 생성자로 주입받는다 (기법: 생성자 주입 · 이유: DIP - 구현체(콘솔 · SMTP · 테스트용 가짜)를 바깥에서 갈아끼움)
  *   - 실행 시 주입되는 구현체: ConsoleMailSender · ConsoleAuditLogger (레거시와 출력 문자열 동일)
- * [보존] 메일 · 감사로그 문자열, 게시 조건, 조용히 무시하는 동작 전부 그대로 - 협력 객체를 얻는 방법만 바뀌었다.
  * [리팩토링] 감사로그 시각 포맷 · 줄 조립 복붙 2곳 → auditLogger.write(동작, id, 행위자) 위임 (형식은 ConsoleAuditLogger 한 곳)
- *   - 검증: NoticeServiceCharacterizationTest 가 "] NOTICE CREATE id=.. by=.." 출력을 그대로 고정
- * [남은 것] 메일 본문 양식 공통화(결재와 유사 중복), 매직넘버(스멜3), 게시 로직을 엔티티로 이동.
+ * [리팩토링] 게시 규칙을 엔티티로 이동 (기법: Tell, Don't Ask · 기능 욕심 해소 · 결재 R09 와 같은 방식)
+ *   - 레거시 publish: user.getRole() >= 2 · n.getStatus() == 0 · n.getCategory() == 2 를 서비스가 꺼내 비교(중첩 4단)
+ *   - 지금: notice.publish(user) 가 권한 · 상태를 판단해 true/false, 긴급 여부는 notice.isEmergency(),
+ *     생성 초기값은 Notice.draft, 라벨은 notice.statusLabel() - 서비스는 흐름(조회 → 시키기 → 저장 → 메일 → 로그)만 맡는다
+ * [보존] public 메서드 시그니처 전부, 메일 · 감사로그 문자열, 저장 → 메일 → 로그 순서, 조용히 무시하는 동작,
+ *   null id 예외(findById(null)) - NoticeServiceCharacterizationTest 17개가 고정한다.
+ * [남은 것] 메일 본문 양식 공통화(결재와 유사 중복), status · category enum(R07).
  */
 @Service
 public class NoticeService {
 
-    private final NoticeRepository repo;
-    private final UserRepository userRepo;
+    // [이름 개선] repo · userRepo → noticeRepository · userRepository (약어 금지 규칙)
+    private final NoticeRepository noticeRepository;
+    private final UserRepository userRepository;
 
     // [리팩토링] 직접 new → 생성자 주입. 이름도 mail · audit → mailSender · auditLogger (타입이 하는 일을 드러냄)
     private final MailSender mailSender;
     private final AuditLogger auditLogger;
 
-    public NoticeService(NoticeRepository repo, UserRepository userRepo,
+    public NoticeService(NoticeRepository noticeRepository, UserRepository userRepository,
                          MailSender mailSender, AuditLogger auditLogger) {
-        this.repo = repo;
-        this.userRepo = userRepo;
+        this.noticeRepository = noticeRepository;
+        this.userRepository = userRepository;
         this.mailSender = mailSender;
         this.auditLogger = auditLogger;
     }
 
+    /** 공지 생성 (임시). [리팩토링] 초기값 규칙(상태 0 · 생성 시각)은 Notice.draft 가 정한다. */
     public Notice create(String title, String content, int category, Long writerId, boolean pinned) {
-        Notice n = new Notice();   // n = 공지(Notice 객체)
-        n.setTitle(title);
-        n.setContent(content);
-        n.setCategory(category);   // category(분류): 1 일반·2 긴급·3 인사  [숫자 의미가 코드에 없음]
-        n.setStatus(0);            // status(상태): 0 임시·1 게시·9 내림  [0=임시, 게시 전]
-        n.setWriterId(writerId);
-        n.setPinned(pinned);
-        n.setCreatedAt(LocalDateTime.now());
-        repo.save(n);
-
-        // [리팩토링] 레거시: 시각 포맷 + 줄 조립을 여기서 직접(ApprovalService 와 복붙) → 동작 · 대상 · 행위자만 넘긴다
-        auditLogger.write("NOTICE CREATE", n.getId(), writerId);
-        return n;
+        Notice notice = Notice.draft(title, content, category, writerId, pinned, LocalDateTime.now());
+        noticeRepository.save(notice);
+        auditLogger.write("NOTICE CREATE", notice.getId(), writerId);
+        return notice;
     }
 
+    /**
+     * 공지 게시.
+     * [리팩토링] 중첩 4단 if → 엔티티에 시키고(publish) false 면 조용히 끝, 성공했을 때만 부수효과.
+     * [보존] 없는 공지 · 없는 사용자 · 권한 없음 · 임시가 아님 → 예외 없이 무시.
+     */
     public void publish(Long id, Long userId) {
-        Notice n = repo.findById(id).orElse(null);   // n = 공지(Notice 객체)
-        if (n == null) return;
-        User user = userRepo.findById(userId).orElse(null);   // [이름 개선] u → user
-        if (user == null) return;
+        Notice notice = noticeRepository.findById(id).orElse(null);
+        if (notice == null) {
+            return;   // [보존] 없는 공지 - 조용히 리턴
+        }
+        User publisher = userRepository.findById(userId).orElse(null);
+        if (publisher == null) {
+            return;   // [보존] 없는 사용자 - 조용히 리턴
+        }
+        if (!notice.publish(publisher)) {
+            return;   // [보존] 권한 없음(사원) · 이미 게시 · 내림 - 조용히 리턴
+        }
+        noticeRepository.save(notice);
+        if (notice.isEmergency()) {
+            notifyAllMembersOfEmergency(notice);
+        }
+        auditLogger.write("NOTICE PUBLISH", notice.getId(), userId);   // [보존] 메일을 다 보낸 뒤 로그
+    }
 
-        // [스멜3] 권한 매직넘버. [스멜2] 게시 + 긴급공지 메일 + 로그를 한 메서드에서.
-        if (user.getRole() >= 2) {        // role 1=사원·2=팀장·3=임원 (role>=2 팀장 이상 게시권한)  [ApprovalService 와 똑같은 권한 판정 복붙]
-            if (n.getStatus() == 0) {  // status==0 → 임시(게시 전)일 때만
-                n.setStatus(1);   // 1 = 게시 (PUBLISHED)
-                repo.save(n);
-
-                // [스멜4] 긴급(2) 공지면 전직원 메일 — 본문 생성 패턴이 또 반복된다.
-                if (n.getCategory() == 2) {   // category 1=일반·2=긴급·3=인사 → category==2(긴급)  [숫자 2를 외워야 의미를 앎]
-                    for (User member : userRepo.findAll()) {
-                        String body = "안녕하세요 " + member.getName() + "님,\n"
-                                + "긴급 공지가 게시되었습니다.\n제목: " + n.getTitle();
-                        mailSender.send(member.getEmail(), "[긴급공지] " + n.getTitle(), body);
-                    }
-                }
-                auditLogger.write("NOTICE PUBLISH", n.getId(), userId);   // [리팩토링] 형식은 ConsoleAuditLogger 가 만든다
-            }
+    // [리팩토링] Extract Method - 긴급공지 전 직원 메일. [보존] 수신자 = 전체 사용자(findAll 순서), 제목 · 본문 1글자도 그대로
+    private void notifyAllMembersOfEmergency(Notice notice) {
+        for (User member : userRepository.findAll()) {
+            String body = "안녕하세요 " + member.getName() + "님,\n"
+                    + "긴급 공지가 게시되었습니다.\n제목: " + notice.getTitle();
+            mailSender.send(member.getEmail(), "[긴급공지] " + notice.getTitle(), body);
         }
     }
 
-    // [스멜10] statusLabel 도 ApprovalService 와 거의 같은 구조로 또 존재한다.
-    public String statusLabel(Notice n) {
-        int status = n.getStatus();   // [이름 개선] s → status. 값: 0 임시·1 게시·9 내림
-        if (status == 0) return "임시";        // 0~9 라벨 번역 — ApprovalService.statusLabel 과 판박이(중복)
-        else if (status == 1) return "게시";
-        else if (status == 9) return "내림";
-        else return "알수없음";
+    /** 상태 표시 라벨. [보존] public 시그니처 그대로. [리팩토링] 라벨 규칙은 Notice.statusLabel 로 이동 (Move Method). */
+    public String statusLabel(Notice notice) {
+        return notice.statusLabel();
     }
 }

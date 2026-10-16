@@ -13,76 +13,81 @@ import java.time.LocalDateTime;
  *
  * [리팩토링 R02] 레거시: new FileAuditLogger() 직접 생성
  *   → AuditLogger 인터페이스를 생성자로 주입받는다 (기법: 생성자 주입 · 이유: DIP - 출력 대상을 바꿔도 이 클래스는 그대로)
- *   - 실행 시 주입되는 구현체: ConsoleAuditLogger (레거시와 출력 문자열 동일)
- * [보존] 감사로그 문자열, 검증 · 겹침 판정 · null 반환 · 조용히 무시하는 동작 전부 그대로 - 협력 객체를 얻는 방법만 바뀌었다.
  * [리팩토링] 감사로그 시각 포맷 · 줄 조립 복붙 2곳 → auditLogger.write(동작, id, 행위자) 위임 (형식은 ConsoleAuditLogger 한 곳)
- *   - 검증: ScheduleServiceCharacterizationTest 가 "] SCHEDULE CREATE · CONFIRM id=.. by=.." 출력을 그대로 고정
- * [남은 것] 긴 검증 · flag1 이름 · 매직넘버 · 겹침 판정을 엔티티로 이동.
+ * [리팩토링] 검증 · 겹침 · 확정 규칙을 엔티티로 이동 (기법: Tell, Don't Ask · 조건문 분해 · 결재 R09 와 같은 방식)
+ *   - 레거시 create 39줄: 입력 검증 if 3개 + flag1 루프(getStatus · getStartAt · getEndAt 를 꺼내 비교) + setter 7줄 + 로그
+ *   - 지금: Schedule.isCreatable(검증) → hasOverlappingSchedule(각 일정에 overlaps 를 물음) → Schedule.draft(생성) → 저장 → 로그
+ *   - confirm 도 schedule.confirm(userId) 가 소유자 · 상태를 판단해 true/false
+ * [보존] public 메서드 시그니처 전부, 실패 시 null 반환(원인 구분 없음), 감사로그 문자열, 조용히 무시하는 동작,
+ *   소유자 null 일정 확정 시 NullPointerException - ScheduleServiceCharacterizationTest 24개가 고정한다.
+ * [남은 것] status enum(R07), null 반환 → 원인을 알리는 결과(재설계 단계).
  */
 @Service
 public class ScheduleService {
 
-    private final ScheduleRepository repo;
-    private final UserRepository userRepo;
+    // [이름 개선] repo · userRepo → scheduleRepository · userRepository (약어 금지 규칙)
+    private final ScheduleRepository scheduleRepository;
+    private final UserRepository userRepository;
     // [리팩토링] 직접 new → 생성자 주입. 이름도 audit → auditLogger
     private final AuditLogger auditLogger;
 
-    public ScheduleService(ScheduleRepository repo, UserRepository userRepo, AuditLogger auditLogger) {
-        this.repo = repo;
-        this.userRepo = userRepo;
+    public ScheduleService(ScheduleRepository scheduleRepository, UserRepository userRepository, AuditLogger auditLogger) {
+        this.scheduleRepository = scheduleRepository;
+        this.userRepository = userRepository;
         this.auditLogger = auditLogger;
     }
 
+    /**
+     * 일정 생성.
+     * [보존] 입력이 잘못됐거나 같은 소유자의 일정과 겹치면 null (저장 · 로그 없음, 예외 없음).
+     */
     public Schedule create(String title, Long ownerId, LocalDateTime startAt,
                            LocalDateTime endAt, String location) {
-        // [스멜2] 검증 + 중복확인 + 저장 + 로그가 한 덩어리.
-        if (title == null || title.equals("")) {   // [스멜] "".equals 가 아니라 NPE 위험 패턴
+        if (!Schedule.isCreatable(title, startAt, endAt)) {
             return null;
         }
-        if (startAt == null || endAt == null) {
-            return null;
+        if (hasOverlappingSchedule(ownerId, startAt, endAt)) {
+            return null;   // [보존] 겹쳐서 실패해도 원인 없이 null (재설계 단계 결함 후보)
         }
-        if (endAt.isBefore(startAt)) {
-            return null;
-        }
-        // [스멜] 같은 사람의 시간 겹침을 직접 루프 돌며 확인(읽기 어려움).
-        boolean flag1 = false;   // flag1 = 시간 겹침 여부(true=겹침)  [스멜9: 무슨 깃발? isOverlapping 이어야 함]
-        for (Schedule existingSchedule : repo.findByOwnerId(ownerId)) {   // [이름 개선] s → existingSchedule (상태가 아니라 같은 소유자의 기존 일정)
-            if (existingSchedule.getStatus() != 9) {   // status(상태): 0 예정·1 확정·9 취소 → 취소(9) 일정은 겹침 검사 제외
-                if (existingSchedule.getStartAt().isBefore(endAt) && startAt.isBefore(existingSchedule.getEndAt())) {
-                    flag1 = true;       // 시간대가 겹침 (이 조건식 자체도 메서드로 추출 대상)
-                }
-            }
-        }
-        if (flag1) {
-            return null;   // [스멜] null 반환 — 호출자는 '겹쳐서 실패'인지 원인을 모름
-        }
-
-        Schedule sc = new Schedule();   // sc = 일정(Schedule 객체)
-        sc.setTitle(title);
-        sc.setOwnerId(ownerId);
-        sc.setStartAt(startAt);
-        sc.setEndAt(endAt);
-        sc.setLocation(location);
-        sc.setStatus(0);   // status(상태): 0 예정·1 확정·9 취소  [0=예정, 확정 전]
-        repo.save(sc);
-
-        // [리팩토링] 레거시: 또 복붙된 시각 포맷 + 줄 조립 → 동작 · 대상 · 행위자만 넘긴다
-        auditLogger.write("SCHEDULE CREATE", sc.getId(), ownerId);
-        return sc;
+        Schedule schedule = Schedule.draft(title, ownerId, startAt, endAt, location);
+        scheduleRepository.save(schedule);
+        auditLogger.write("SCHEDULE CREATE", schedule.getId(), ownerId);
+        return schedule;
     }
 
-    public void confirm(Long id, Long userId) {
-        Schedule sc = repo.findById(id).orElse(null);   // sc = 일정(Schedule 객체)
-        if (sc == null) return;
-        User user = userRepo.findById(userId).orElse(null);   // [이름 개선] u → user (조회만 하고 쓰지 않음 - 없으면 무시하는 레거시 동작 보존)
-        if (user == null) return;
-        if (sc.getOwnerId().equals(userId)) {   // 본인 일정만 확정 가능
-            if (sc.getStatus() == 0) {          // status==0 → 예정 상태일 때만
-                sc.setStatus(1);   // 1 = 확정 (CONFIRMED)
-                repo.save(sc);
-                auditLogger.write("SCHEDULE CONFIRM", sc.getId(), userId);   // [리팩토링] 형식은 ConsoleAuditLogger 가 만든다
+    /**
+     * 같은 소유자의 기존 일정 중 겹치는 것이 있는가.
+     * [리팩토링] 레거시 flag1 루프 → 이름 있는 메서드 + isOverlapping (스멜9: flag1 은 무슨 깃발인지 몰랐다).
+     * [보존] 레거시처럼 중간에 멈추지 않고 모든 기존 일정을 끝까지 확인한다(검사 도중 예외가 나는 경우까지 같게).
+     */
+    private boolean hasOverlappingSchedule(Long ownerId, LocalDateTime startAt, LocalDateTime endAt) {
+        boolean isOverlapping = false;
+        for (Schedule existingSchedule : scheduleRepository.findByOwnerId(ownerId)) {
+            if (existingSchedule.overlaps(startAt, endAt)) {
+                isOverlapping = true;
             }
         }
+        return isOverlapping;
+    }
+
+    /**
+     * 일정 확정.
+     * [보존] 없는 일정 · 없는 사용자 · 본인 아님 · 예정이 아님 → 예외 없이 무시.
+     *   사용자는 조회만 하고 쓰지 않는다(없으면 무시하는 레거시 동작 보존).
+     */
+    public void confirm(Long id, Long userId) {
+        Schedule schedule = scheduleRepository.findById(id).orElse(null);
+        if (schedule == null) {
+            return;
+        }
+        User requester = userRepository.findById(userId).orElse(null);
+        if (requester == null) {
+            return;
+        }
+        if (!schedule.confirm(userId)) {
+            return;
+        }
+        scheduleRepository.save(schedule);
+        auditLogger.write("SCHEDULE CONFIRM", schedule.getId(), userId);
     }
 }

@@ -9,7 +9,10 @@ import jakarta.persistence.*;
  * [리팩토링] 결재 권한 판정(role >= 2)을 서비스 → 엔티티 메서드 hasApprovalAuthority() 로 이동
  *   (기법: 기능 욕심 해소 · Rich Domain · 이유: 같은 권한 규칙이 ApprovalService 승인 · 반려에 복붙돼 있었다). 백로그 R09
  *   - 보존: 판정 기준 팀장(2) 이상 그대로. "has" 접두라 JSON 직렬화 대상이 아니다(사용자 응답 필드 5개 유지)
- *   - 남은 것: role 은 아직 int (UserRole enum → R07), NoticeService 의 같은 판정은 공지 특성화 테스트가 없어 그대로
+ *   - 남은 것: role 은 아직 int (UserRole enum → R07)
+ * [리팩토링] 공지 게시 권한(NoticeService 의 role >= 2)도 엔티티로 → hasNoticePublishAuthority()
+ *   - 결재 권한과 **일부러 합치지 않는다** (우연 중복): 지금은 둘 다 "팀장 이상"이지만 게시 권한과 결재 권한은
+ *     따로 바뀔 수 있는 다른 규칙이다. 한 메서드로 합치면 "공지는 임원만 게시" 같은 변경이 결재 권한까지 바꾼다.
  */
 @Entity
 @Table(name = "users")
@@ -30,6 +33,11 @@ public class User {
 
     /** 결재(승인 · 반려) 권한 - 팀장(2) 이상. [보존] 레거시 "role >= 2" 판정 그대로. */
     public boolean hasApprovalAuthority() {
+        return role >= TEAM_LEADER_ROLE;
+    }
+
+    /** 공지 게시 권한 - 팀장(2) 이상. [보존] 레거시 NoticeService "role >= 2" 판정 그대로. 결재 권한과 별개 규칙(우연 중복). */
+    public boolean hasNoticePublishAuthority() {
         return role >= TEAM_LEADER_ROLE;
     }
 
