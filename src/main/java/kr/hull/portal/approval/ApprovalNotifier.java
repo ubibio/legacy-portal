@@ -25,30 +25,61 @@ public class ApprovalNotifier {
         this.mailSender = mailSender;
     }
 
-    /** 상신 → 결재자에게 [결재요청] (기안자ID 줄 포함). */
+    /*
+     * [리팩토링] Extract Method - 알림마다 본문 조립을 이름 있는 private 메서드(submittedBody · approvedBody · rejectedBody)로 추출
+     *   - 레거시: approve · reject 분기 안에 "안녕하세요 " + 이름 + ... 긴 문자열 조립이 그대로 박혀 있었다
+     *   - 직전(R10): 인자 5개(수신자 id · 말머리 · 안내문 · 결재 · 추가 줄)를 받는 공통 send() 로 합쳤지만,
+     *     호출부만 봐서는 실제 본문 모양이 안 보였다 → 본문마다 메서드 이름으로 의도를 드러낸다
+     *   - 본문 메서드는 private 로 유지 (메일 문구는 이 클래스 밖에 노출하지 않는다)
+     * [보존] 본문 · 제목 문자열 1글자도 동일, 수신자 결정 · 못 찾으면 생략 · 수신자 id null 이면 예외 (ApprovalNotificationOutputTest)
+     */
+
+    /** 상신 → 결재자에게 [결재요청]. */
     public void notifySubmitted(Approval approval) {
-        send(approval.getApproverId(), "결재요청", "결재 요청이 도착했습니다.", approval,
-                "\n기안자ID: " + approval.getDrafterId());
+        User approver = findRecipient(approval.getApproverId());
+        if (approver == null) {
+            return;
+        }
+        mailSender.send(approver.getEmail(), "[결재요청] " + approval.getTitle(), submittedBody(approver, approval));
     }
 
     /** 승인 → 기안자에게 [결재승인]. */
     public void notifyApproved(Approval approval) {
-        send(approval.getDrafterId(), "결재승인", "결재가 승인되었습니다.", approval, "");
-    }
-
-    /** 반려 → 기안자에게 [결재반려] (사유 줄 포함). */
-    public void notifyRejected(Approval approval, String reason) {
-        send(approval.getDrafterId(), "결재반려", "결재가 반려되었습니다.", approval, "\n사유: " + reason);
-    }
-
-    private void send(Long recipientId, String subjectTag, String message, Approval approval, String extraLine) {
-        User recipient = userRepository.findById(recipientId).orElse(null);
-        if (recipient == null) {
+        User drafter = findRecipient(approval.getDrafterId());
+        if (drafter == null) {
             return;
         }
-        String body = "안녕하세요 " + recipient.getName() + "님,\n"
-                + message + "\n제목: " + approval.getTitle()
-                + extraLine;
-        mailSender.send(recipient.getEmail(), "[" + subjectTag + "] " + approval.getTitle(), body);
+        mailSender.send(drafter.getEmail(), "[결재승인] " + approval.getTitle(), approvedBody(drafter, approval));
+    }
+
+    /** 반려 → 기안자에게 [결재반려]. */
+    public void notifyRejected(Approval approval, String reason) {
+        User drafter = findRecipient(approval.getDrafterId());
+        if (drafter == null) {
+            return;
+        }
+        mailSender.send(drafter.getEmail(), "[결재반려] " + approval.getTitle(), rejectedBody(drafter, approval, reason));
+    }
+
+    // [보존] 수신자를 못 찾으면 null → 메일 생략. id 가 null 이면 findById 가 예외 (레거시 동작)
+    private User findRecipient(Long recipientId) {
+        return userRepository.findById(recipientId).orElse(null);
+    }
+
+    private String submittedBody(User approver, Approval approval) {
+        return "안녕하세요 " + approver.getName() + "님,\n"
+                + "결재 요청이 도착했습니다.\n제목: " + approval.getTitle()
+                + "\n기안자ID: " + approval.getDrafterId();
+    }
+
+    private String approvedBody(User drafter, Approval approval) {
+        return "안녕하세요 " + drafter.getName() + "님,\n"
+                + "결재가 승인되었습니다.\n제목: " + approval.getTitle();
+    }
+
+    private String rejectedBody(User drafter, Approval approval, String reason) {
+        return "안녕하세요 " + drafter.getName() + "님,\n"
+                + "결재가 반려되었습니다.\n제목: " + approval.getTitle()
+                + "\n사유: " + reason;
     }
 }
