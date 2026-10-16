@@ -1,6 +1,8 @@
 package kr.hull.portal.approval;
 
 import jakarta.persistence.*;
+import kr.hull.portal.user.User;
+
 import java.time.LocalDateTime;
 
 /**
@@ -19,9 +21,25 @@ import java.time.LocalDateTime;
  *   - 추가: approvalStatus() / changeStatus(ApprovalStatus) - 프로덕션 코드는 이것으로 enum 비교 · 변경.
  *           이름에 get/set 접두를 붙이지 않아 JSON 에 새 필드가 생기지 않는다.
  *   - 남은 것: type · priority 는 아직 int (백로그 R07).
+ *
+ * [리팩토링] 빈약한 도메인 → 풍부한 도메인 (기법: 기능 욕심 해소 · 로직을 데이터가 있는 곳으로 이동 · 백로그 R09)
+ *   - 레거시: ApprovalService 가 getStatus() · getApproverId() · getAmount() 를 꺼내 상태 전이 · 권한 · 금액 규칙을 대신 계산
+ *   - 여기서: submit / approve / reject / cancel 이 전제조건 검사 + 상태 · 수정시각 변경을 스스로 한다.
+ *            조건이 안 맞으면 아무것도 바꾸지 않고 false 를 돌려준다 → 서비스는 false 면 조용히 끝낸다(레거시 "조용히 무시" 보존)
+ *   - 금액 등급(amountGrade) · 결재자/기안자 본인 판정도 엔티티로.
+ *   - JSON 보존: 새 메서드는 get 접두가 없거나(amountGrade) 인자가 있어서(isApprover(Long) 등) 응답 필드로 나가지 않는다 - 필드 12개 그대로
+ *   - 남은 것: public setter 는 레거시 계약이라 그대로 둔다 (캡슐화는 재설계 단계)
  */
 @Entity
 public class Approval {
+
+    private static final int EXPENSE_TYPE = 1;                            // 유형 1 = 지출
+    private static final int HIGH_PRIORITY = 3;                           // 우선순위 3 = 높음
+    private static final long HIGH_PRIORITY_EXPENSE_THRESHOLD = 1_000_000L; // 상신 시 우선순위 상향 기준(지출 100만원 이상)
+    // 금액 등급 경계 - 위 상향 기준과 값(100만원)이 같아도 다른 규칙이라 따로 둔다
+    private static final long GRADE_S_MINIMUM_AMOUNT = 10_000_000L;
+    private static final long GRADE_A_MINIMUM_AMOUNT = 1_000_000L;
+    private static final long GRADE_B_MINIMUM_AMOUNT = 100_000L;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -71,4 +89,82 @@ public class Approval {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    // ── [리팩토링 R09] 도메인 행위 ───────────────────────────────────────────
+
+    /**
+     * 상신. 임시저장일 때만 된다. 지출 · 100만원 이상이면 우선순위를 높음(3)으로 올린다.
+     * [보존] 요청자가 기안자인지는 보지 않는다(레거시 동작 - 재설계 단계 결함 후보).
+     * @return 상신됐으면 true, 조건이 안 맞아 아무것도 바꾸지 않았으면 false
+     */
+    public boolean submit(LocalDateTime now) {
+        if (status != ApprovalStatus.DRAFT) {
+            return false;
+        }
+        if (type == EXPENSE_TYPE && amount >= HIGH_PRIORITY_EXPENSE_THRESHOLD) {
+            priority = HIGH_PRIORITY;
+        }
+        status = ApprovalStatus.SUBMITTED;
+        updatedAt = now;
+        return true;
+    }
+
+    /** 승인. 상신 상태 + 요청자가 지정된 결재자 + 결재 권한(팀장 이상)일 때만. */
+    public boolean approve(User requester, LocalDateTime now) {
+        if (!canBeDecidedBy(requester)) {
+            return false;
+        }
+        status = ApprovalStatus.APPROVED;
+        updatedAt = now;
+        return true;
+    }
+
+    /** 반려. 승인과 같은 조건. [보존] 사유는 검증 없이 그대로 저장(빈 문자열 · null 도). */
+    public boolean reject(User requester, String reason, LocalDateTime now) {
+        if (!canBeDecidedBy(requester)) {
+            return false;
+        }
+        status = ApprovalStatus.REJECTED;
+        rejectReason = reason;
+        updatedAt = now;
+        return true;
+    }
+
+    /** 취소. 승인 전(임시저장 · 상신) + 요청자가 기안자 본인일 때만. [보존] 역할(role)은 보지 않는다. */
+    public boolean cancel(Long requesterId, LocalDateTime now) {
+        if (status != ApprovalStatus.DRAFT && status != ApprovalStatus.SUBMITTED) {
+            return false;
+        }
+        if (!isDraftedBy(requesterId)) {
+            return false;
+        }
+        status = ApprovalStatus.CANCELED;
+        updatedAt = now;
+        return true;
+    }
+
+    /** 지정된 결재자 본인인가. [보존] 결재자 미지정(null)이면 false. */
+    public boolean isApprover(Long userId) {
+        return approverId != null && approverId.equals(userId);
+    }
+
+    /** 기안자 본인인가. [보존] 기안자 미지정(null)이면 false. */
+    public boolean isDraftedBy(Long userId) {
+        return drafterId != null && drafterId.equals(userId);
+    }
+
+    /** 금액 등급 S(1000만원↑) · A(100만원↑) · B(10만원↑) · C. [보존] 경계값은 "이상" 그대로. */
+    public String amountGrade() {
+        if (amount >= GRADE_S_MINIMUM_AMOUNT) return "S";
+        if (amount >= GRADE_A_MINIMUM_AMOUNT) return "A";
+        if (amount >= GRADE_B_MINIMUM_AMOUNT) return "B";
+        return "C";
+    }
+
+    // 승인 · 반려 공통 전제조건 - 레거시는 이 3단 검사가 approve · reject 에 복붙돼 있었다(스멜 S08 · 02 문서 D3 · D8)
+    private boolean canBeDecidedBy(User requester) {
+        return status == ApprovalStatus.SUBMITTED
+                && isApprover(requester.getId())
+                && requester.hasApprovalAuthority();
+    }
 }
