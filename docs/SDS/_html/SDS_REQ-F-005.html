@@ -1,0 +1,145 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>SDS REQ-F-005</title><link rel="stylesheet" href="sds.css"></head><body>
+<main class="sds" data-id="REQ-F-005">
+<div class="cover"><h1>SDS - REQ-F-005 기안자 결재 취소</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<h2>1. 개요</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>요구사항 ID</td><td>REQ-F-005</td></tr>
+<tr><td>요구사항명</td><td>기안자 결재 취소</td></tr>
+<tr><td>대 / 중 / 소분류</td><td>PORTAL / Approval / Cancel</td></tr>
+<tr><td>우선순위</td><td>Medium</td></tr>
+<tr><td>진행현황</td><td>테스트중</td></tr>
+<tr><td>수용 여부</td><td>수용</td></tr>
+<tr><td>비고(엑셀)</td><td>소스 역추출.</td></tr>
+<tr><td>요약</td><td>action=9 로 임시저장(0) · 상신(1) 문서를 기안자 본인만 취소(9)한다. 저장 후 감사로그 &#x27;APPROVAL CANCEL&#x27;, 메일 없음. F열 6개 문장 모두 소스와 일치한다.</td></tr>
+</tbody></table>
+<h2>2. 근거</h2>
+<p><b>SRS 없음 (엑셀 F열 · 소스만으로 분석)</b> - <code>D:\legacy-portal\docs\SRS</code> 가 존재하지 않는다. 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<div class="raw">[개요]
+기안자가 아직 결론이 나지 않은 자신의 결재 문서를 취소한다.
+
+[상세 기능 요구사항]
+1) action=9(취소) 요청을 처리한다.
+2) 상태가 임시저장(0) 또는 상신(1)이고 요청자가 기안자 본인일 때만 취소(9)로 바꾼다.
+3) 취소 성공 시 저장 후 감사로그 &#x27;APPROVAL CANCEL&#x27; 을 남긴다.
+
+[입력 / 출력]
+- 입력: 결재 문서 ID, 요청자 ID, action=9
+- 출력: 상태 변경(0 또는 1 → 9), 감사로그 1줄
+
+[제약 조건 / 비기능 요구사항]
+- 취소 시에는 메일을 보내지 않는다.
+- 승인 · 반려 · 취소된 문서는 취소할 수 없다.
+
+[검증 기준]
+- 기안자가 아닌 사용자의 취소 요청은 상태를 바꾸지 않는다.
+- 승인된 문서에 취소를 요청해도 상태가 2 로 남는다.
+- 취소 시 메일 출력이 없다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\approval (Approval.cancel)
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</div>
+<p>설계 제약: <code>D:\legacy-portal\CLAUDE.md</code> 의 불변 규칙 - API 엔드포인트 · HTTP 메서드, 요청/응답 JSON 구조, DB 저장 정수값, public 메서드 시그니처, 관찰 가능한 동작(조용한 무시 포함)을 바꾸지 않는다. 결함은 보존 대상과 개선 대상을 나눠 적는다.</p>
+<h2>3. 분석 결과</h2><h3>3.1 추적표 (F열 문장 ↔ 소스)</h3>
+<table><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead><tbody>
+<tr><td>상세 1</td><td>action=9(취소) 요청을 처리한다.</td><td>SRS 없음</td><td>ApprovalAction.java:18<br>ApprovalService.java:132</td><td><span class="v-ok">충족</span></td><td>CANCEL → private cancel</td></tr>
+<tr><td>상세 2</td><td>상태가 임시저장(0) 또는 상신(1)이고 요청자가 기안자 본인일 때만 취소(9)로 바꾼다.</td><td>SRS 없음</td><td>Approval.java:157-167, 175-177</td><td><span class="v-ok">충족</span></td><td>역할(role)은 보지 않는다</td></tr>
+<tr><td>상세 3</td><td>취소 성공 시 저장 후 감사로그 &#x27;APPROVAL CANCEL&#x27; 을 남긴다.</td><td>SRS 없음</td><td>ApprovalService.java:171-172<br>ApprovalAuditRecorder.java:42-44</td><td><span class="v-ok">충족</span></td><td></td></tr>
+<tr><td>출력</td><td>상태 변경(0 또는 1 → 9), 감사로그 1줄</td><td>SRS 없음</td><td>ApprovalService.java:167-173</td><td><span class="v-ok">충족</span></td><td>HTTP 200 빈 본문. DB 에는 순번 4 가 아니라 9</td></tr>
+<tr><td>제약 1</td><td>취소 시에는 메일을 보내지 않는다.</td><td>SRS 없음</td><td>ApprovalService.java:167-173</td><td><span class="v-ok">충족</span></td><td>cancel 경로에 ApprovalNotifier 호출 없음</td></tr>
+<tr><td>제약 2</td><td>승인 · 반려 · 취소된 문서는 취소할 수 없다.</td><td>SRS 없음</td><td>Approval.java:158-160</td><td><span class="v-ok">충족</span></td><td>DRAFT · SUBMITTED 외에는 false</td></tr>
+</tbody></table>
+<h3>3.2 판정 요약</h3>
+<table><thead><tr><th>충족</th><th>부분 충족</th><th>미충족</th><th>불일치</th><th>확인 불가</th></tr></thead><tbody>
+<tr><td>6</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+</tbody></table>
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table><thead><tr><th>검증 기준(F열)</th><th>고정하는 테스트 (테스트클래스#메서드)</th></tr></thead><tbody>
+<tr><td>기안자가 아닌 사용자의 취소 요청은 상태를 바꾸지 않는다.</td><td>ApprovalServiceBranchTest#기안자가_아닌_결재자가_취소하면_조용히_무시된다<br>ApprovalServiceSafetyNetTest#상신_전_결재를_기안자가_아닌_사람이_취소하면_조용히_무시된다</td></tr>
+<tr><td>승인된 문서에 취소를 요청해도 상태가 2 로 남는다.</td><td>ApprovalServiceBranchTest#기안자가_승인된_결재를_취소하면_조용히_무시된다</td></tr>
+<tr><td>취소 시 메일 출력이 없다.</td><td>ApprovalNotificationOutputTest#취소하면_메일_없이_감사로그만_남는다<br>ApprovalServiceMailUnitTest#취소하면_메일은_보내지_않고_감사로그만_쓴다</td></tr>
+</tbody></table>
+<h2>4. 구성 요소 설계</h2><p>public 시그니처는 현행 그대로 유지한다(신규 public 메서드 추가 없음).</p>
+<table><thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처</th></tr></thead><tbody>
+<tr><td>ApprovalService</td><td>취소 흐름 (메일 없음)</td><td><code>public void processApproval(Long id, Long userId, int action, String reason)</code><br><code>private void cancel(Approval approval, Long requesterId)</code></td></tr>
+<tr><td>Approval (Entity)</td><td>취소 가드 · 상태 변경</td><td><code>public boolean cancel(Long requesterId, LocalDateTime now)</code><br><code>public boolean isDraftedBy(Long userId)</code></td></tr>
+<tr><td>ApprovalAuditRecorder</td><td>APPROVAL CANCEL 로그</td><td><code>public void recordCanceled(Approval approval, Long actorId)</code></td></tr>
+<tr><td>ApprovalStatusConverter</td><td>CANCELED ↔ 정수 9</td><td><code>public Integer convertToDatabaseColumn(ApprovalStatus status)</code></td></tr>
+</tbody></table>
+<h2>5. 인터페이스 설계</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>엔드포인트</td><td><code>POST /api/approvals/{id}/process</code> (ApprovalController.java:43-47) - URL · HTTP 메서드 변경 금지, /submit · /approve 등으로 쪼개지 않는다</td></tr>
+<tr><td>경로 변수</td><td><code>id</code> (Long) - 결재 문서 ID</td></tr>
+<tr><td>요청 본문</td><td><code>ProcessRequest(Long userId, Integer action, String reason)</code> (dto/ProcessRequest.java:15)</td></tr>
+<tr><td>action 코드</td><td>1=상신 2=승인 3=반려 9=취소 (ApprovalAction.java:15-18). 그 밖의 값은 조용히 무시</td></tr>
+<tr><td>reason</td><td>생략 시 &quot;&quot; (ProcessRequest.java:18-20)</td></tr>
+<tr><td>응답</td><td>HTTP 200, 빈 본문 (컨트롤러 반환형 void) - 처리 성공 · 무시 모두 같다</td></tr>
+<tr><td>오류 동작</td><td>userId 또는 action 생략 → <code>toCommand()</code> 의 언박싱 NPE → 500 (ProcessRequest.java:26-28, 전역 예외 처리기 없음). 없는 결재 id · 없는 사용자 · 조건 불만족 → 200 빈 본문</td></tr>
+</tbody></table><table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>요청 예시</td><td>{&quot;userId&quot;:1,&quot;action&quot;:9}</td></tr>
+<tr><td>메일</td><td>없음</td></tr>
+<tr><td>감사로그</td><td><code>[AUDIT] [yyyy-MM-dd HH:mm:ss] APPROVAL CANCEL id={id} by={userId}</code></td></tr>
+</tbody></table>
+<h2>6. 데이터 설계</h2>
+<table><thead><tr><th>필드(Approval)</th><th>컬럼(기본 명명 전략)</th><th>Java 타입</th><th>DB 저장값 / 비고</th></tr></thead><tbody>
+<tr><td>id</td><td>id</td><td>Long</td><td>IDENTITY 자동 증가 (Approval.java:42-44)</td></tr>
+<tr><td>title / content</td><td>title / content</td><td>String</td><td>검증 없음</td></tr>
+<tr><td>type</td><td>type</td><td>int</td><td>1~4 정수 그대로 (enum 미도입 - 백로그 R07)</td></tr>
+<tr><td>status</td><td>status</td><td>ApprovalStatus</td><td><code>@Convert(ApprovalStatusConverter)</code> + NOT NULL → 정수 0/1/2/3/9 (Approval.java:51-53). @Enumerated 금지</td></tr>
+<tr><td>priority</td><td>priority</td><td>int</td><td>1~3 정수 그대로</td></tr>
+<tr><td>drafterId / approverId</td><td>drafter_id / approver_id</td><td>Long</td><td>사용자 ID (FK 제약 없음)</td></tr>
+<tr><td>rejectReason</td><td>reject_reason</td><td>String</td><td>반려 시에만 기록, 그 외 null</td></tr>
+<tr><td>amount</td><td>amount</td><td>long</td><td>금액 (기본 0)</td></tr>
+<tr><td>createdAt / updatedAt</td><td>created_at / updated_at</td><td>LocalDateTime</td><td>주입된 Clock 기준 지금 (ApprovalService.java:56)</td></tr>
+</tbody></table><table><thead><tr><th>현재 상태</th><th>action</th><th>조건</th><th>결과 상태</th><th>부수효과</th></tr></thead><tbody>
+<tr><td>0 임시저장</td><td>1 상신</td><td>없음(요청자 검사 없음)</td><td>1</td><td>지출 · 100만원 이상이면 priority=3, 저장 → 결재자 메일 → SUBMIT 로그</td></tr>
+<tr><td>1 상신</td><td>2 승인</td><td>요청자 = 결재자 · role ≥ 2</td><td>2</td><td>저장 → 기안자 메일 → APPROVE 로그</td></tr>
+<tr><td>1 상신</td><td>3 반려</td><td>요청자 = 결재자 · role ≥ 2</td><td>3</td><td>rejectReason 기록, 저장 → 기안자 메일 → REJECT 로그</td></tr>
+<tr><td>0 · 1</td><td>9 취소</td><td>요청자 = 기안자</td><td>9</td><td>저장 → CANCEL 로그 (메일 없음)</td></tr>
+<tr><td>그 밖 조합</td><td>-</td><td>-</td><td>변화 없음</td><td>저장 · 메일 · 로그 없음, 200 빈 본문</td></tr>
+</tbody></table><p>취소 상태는 DB 에 정수 9 로 저장한다. @Enumerated(ORDINAL) 이면 4 로 어긋나므로 금지(ApprovalStatus.java:9-10).</p>
+<h2>7. 처리 흐름</h2>
+<table><thead><tr><th>순서</th><th>단계</th><th>처리 내용</th><th>소스 위치</th></tr></thead><tbody>
+<tr><td>1</td><td>조회</td><td>결재 · 요청자 조회 (요청자가 users 에 없으면 종료)</td><td>ApprovalService.java:116-123</td></tr>
+<tr><td>2</td><td>action 해석</td><td>9 → CANCEL</td><td>ApprovalService.java:132</td></tr>
+<tr><td>3</td><td>가드</td><td>상태 0 · 1 아니면 종료, 기안자 본인 아니면 종료</td><td>Approval.java:158-163</td></tr>
+<tr><td>4</td><td>상태 변경</td><td>status=9, updatedAt=now</td><td>Approval.java:164-165</td></tr>
+<tr><td>5</td><td>저장</td><td>save</td><td>ApprovalService.java:171</td></tr>
+<tr><td>6</td><td>감사로그</td><td>APPROVAL CANCEL (메일 단계 없음)</td><td>ApprovalService.java:172</td></tr>
+</tbody></table>
+<h2>8. 예외 · 경계 처리</h2>
+<table><thead><tr><th>경우</th><th>현재 동작</th><th>소스 위치</th><th>레거시 보존 여부</th></tr></thead><tbody>
+<tr><td>기안자가 아닌 사용자 (결재자 · 팀장 포함)</td><td>무변화, 200</td><td>Approval.java:161-163</td><td>보존</td></tr>
+<tr><td>승인 · 반려 · 취소된 문서</td><td>무변화</td><td>Approval.java:158-160</td><td>보존</td></tr>
+<tr><td>기안자 ID null 문서</td><td>isDraftedBy false → 무변화</td><td>Approval.java:175-177</td><td>보존</td></tr>
+<tr><td>무시된 취소</td><td>감사로그 · 수정시각 변화 없음</td><td>ApprovalService.java:168-170</td><td>보존</td></tr>
+</tbody></table>
+<h2>9. 검증 설계</h2><h3>9.1 검증 기준 ↔ 테스트 매핑</h3>
+<table><thead><tr><th>검증 기준 / 동작</th><th>테스트</th><th>상태</th></tr></thead><tbody>
+<tr><td>기안자 아닌 사용자 → 무변화</td><td>ApprovalServiceBranchTest#기안자가_아닌_결재자가_취소하면_조용히_무시된다 · ApprovalServiceSafetyNetTest#상신_전_결재를_기안자가_아닌_사람이_취소하면_조용히_무시된다</td><td>있음</td></tr>
+<tr><td>승인 문서 → 2 유지</td><td>ApprovalServiceBranchTest#기안자가_승인된_결재를_취소하면_조용히_무시된다</td><td>있음</td></tr>
+<tr><td>메일 없음</td><td>ApprovalNotificationOutputTest#취소하면_메일_없이_감사로그만_남는다 · ApprovalServiceMailUnitTest#취소하면_메일은_보내지_않고_감사로그만_쓴다</td><td>있음</td></tr>
+<tr><td>임시저장 · 상신 취소 성공</td><td>ApprovalServiceTest#기안자가_임시저장_결재를_취소하면_취소된다 · ApprovalServiceBranchTest#기안자가_상신된_결재를_취소하면_취소된다</td><td>있음</td></tr>
+<tr><td>반려 · 취소 문서 재취소</td><td>ApprovalProcessCharacterizationTest#반려된_결재는_다시_상신_승인_반려_취소해도_반려상태와_사유가_유지된다 · #취소된_결재는_다시_상신_승인_반려_취소해도_취소상태가_유지된다</td><td>있음</td></tr>
+<tr><td>DB 정수 9</td><td>ApprovalStatusPersistenceTest#취소된_결재는_DB에_순번_4가_아니라_정수_9로_저장된다</td><td>있음</td></tr>
+<tr><td>무시된 취소의 감사로그 없음</td><td>테스트 없음</td><td>제안</td></tr>
+</tbody></table>
+<h3>9.2 빠진 테스트 제안</h3><p>특성화 테스트 본문은 수정하지 않고 새 테스트로 추가한다. 메서드명은 한글 시나리오, 필드 · 변수는 영어(camelCase).</p>
+<table><thead><tr><th>제안 테스트 메서드</th><th>배치 클래스</th><th>고정할 내용 (변수명 예)</th></tr></thead><tbody>
+<tr><td>기안자가_아닌_사람의_취소는_감사로그를_남기지_않는다()</td><td>ApprovalServiceMailUnitTest 옆 새 클래스 (AuditLogger mock)</td><td><code>otherUser</code> 로 action 9 → <code>verify(auditLogger, never()).write(&quot;APPROVAL CANCEL&quot;, approvalId, otherUserId)</code></td></tr>
+</tbody></table>
+<h2>10. 검토 의견 · 후속 과제</h2><h3>10.1 보존 대상 (리팩토링 단계에서 바꾸지 않음)</h3>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr class="keep"><td>조용한 무시</td><td>조건 불만족 · 없는 결재 · 없는 사용자 · 정의되지 않은 action 은 예외 없이 200 빈 본문 (ApprovalService.java:117-127)</td></tr><tr class="keep"><td>DB 저장값</td><td>status 0/1/2/3/9 정수 (ApprovalStatusConverter.java:16-24)</td></tr><tr class="keep"><td>메일 없음</td><td>취소는 감사로그만</td></tr><tr class="keep"><td>역할 무관</td><td>기안자 본인이면 직급과 상관없이 취소</td></tr></tbody></table>
+<h3>10.2 개선 대상 (재설계 단계 · 별도 요구사항)</h3>
+<table><thead><tr><th>항목</th><th>설계안</th><th>연계</th></tr></thead><tbody><tr class="improve"><td>조용한 무시</td><td>취소 불가 사유를 오류 응답으로 - 재설계 단계</td><td>REQ-NF-002</td></tr><tr class="improve"><td>상신 문서 취소 시 결재자 미통지</td><td>결재자에게 취소 알림 메일 검토 - 동작 변경이라 별도 요구사항 필요</td><td>-</td></tr><tr class="improve"><td>userId 를 본문에서 신뢰</td><td>로그인 사용자를 요청자로</td><td>REQ-SE-002</td></tr></tbody></table>
+<h3>10.3 연계 요구사항</h3>
+<table><thead><tr><th>요구사항</th><th>경계</th></tr></thead><tbody>
+<tr><td>REQ-F-001 · REQ-F-002</td><td>취소 가능한 상태(0 · 1)를 만드는 요구사항</td></tr>
+<tr><td>REQ-F-008 결재 화면</td><td>임시저장 · 상신 문서에 [취소] 버튼 표시</td></tr>
+</tbody></table>
+</main></body></html>

@@ -1,0 +1,164 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SDS - REQ-NF-003</title>
+<link rel="stylesheet" href="sds.css">
+<div class="cover"><h1>SDS - REQ-NF-003 요청 입력 검증</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<main class="sds" data-id="REQ-NF-003">
+
+<h2>1. 개요</h2>
+<table>
+<tr><th style="width:22%">요구사항 ID</th><td>REQ-NF-003</td></tr>
+<tr><th>요구사항명</th><td>요청 입력 검증</td></tr>
+<tr><th>대 / 중 / 소분류</th><td>PORTAL / Quality / Validation</td></tr>
+<tr><th>우선순위</th><td>High</td></tr>
+<tr><th>진행현황</th><td>기획중 (비고: 현재 필드 생략 시 500(NPE). REPORT.md 알려진 차이 참고)</td></tr>
+<tr><th>요약</th><td>결재 기안 · 처리 요청 DTO 에 입력 검증 규칙을 두어, 필수 필드 누락 · 잘못된 값이면 500(NPE) 대신 400 과 필드별 사유를 돌려준다. 현재 요청 DTO 는 기본값 채우기(compact 생성자)만 있고 검증 규칙 · 검증 의존성(<code>spring-boot-starter-validation</code>)이 없어 대부분 <b>미충족</b>이다.</td></tr>
+</table>
+
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<div class="raw">[개요]
+필수 필드 누락 · 잘못된 값이 들어오면 500 오류(NPE) 대신 400 과 필드별 사유를 돌려준다.
+
+[상세 기능 요구사항]
+1) 기안 생성: 제목 · 유형 · 우선순위 · 기안자 ID · 결재자 ID 필수, 금액 0 이상을 검사한다.
+2) 결재 처리: 요청자 ID · action 필수를 검사한다.
+3) 명시적 null(&quot;amount&quot;: null 등)과 키 생략을 같은 규칙으로 처리한다.
+4) 검증 실패 응답은 REQ-NF-002 의 오류 형식을 따른다.
+
+[입력 / 출력]
+- 입력: 요청 JSON
+- 출력: 검증 실패 시 400 + 필드별 사유
+
+[제약 조건 / 비기능 요구사항]
+- 정상 요청의 응답과 동작은 바꾸지 않는다.
+- 검증 규칙을 컨트롤러 곳곳에 흩지 않고 요청 DTO 에 둔다.
+
+[검증 기준]
+- drafterId 를 빼고 기안하면 400 과 &#x27;drafterId&#x27; 사유가 온다.
+- 정상 요청은 변경 전과 같은 응답을 받는다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\approval\dto (CreateApprovalRequest · ProcessRequest)
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</div>
+
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표</h3>
+<table>
+<thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead>
+<tr><td>상세 1</td><td>기안 생성: 제목 · 유형 · 우선순위 · 기안자 ID · 결재자 ID 필수, 금액 0 이상을 검사한다.</td><td>SRS 없음</td><td><code>approval/dto/CreateApprovalRequest.java:18-32, 42-52</code>, <code>approval/ApprovalController.java:36-38</code></td><td class="v-no">미충족</td><td>검사 없음. type · priority 생략 → 언박싱 NPE(46-47행), drafterId · approverId 생략 → <code>longValue()</code> NPE(48-49행) = 500. title 생략 · 음수 amount 는 <b>오류 없이 저장</b>된다. <code>@Valid</code> 미사용.</td></tr>
+<tr><td>상세 2</td><td>결재 처리: 요청자 ID · action 필수를 검사한다.</td><td>SRS 없음</td><td><code>approval/dto/ProcessRequest.java:15-28</code>, <code>ApprovalController.java:44-46</code></td><td class="v-no">미충족</td><td>userId 생략 → <code>longValue()</code> NPE, action 생략 → 언박싱 NPE (27행) = 500.</td></tr>
+<tr><td>상세 3</td><td>명시적 null("amount": null 등)과 키 생략을 같은 규칙으로 처리한다.</td><td>SRS 없음</td><td><code>CreateApprovalRequest.java:14-15, 29-32</code>, <code>ProcessRequest.java:12-13, 18-20</code></td><td class="v-ok">충족</td><td>record 역직렬화로 두 경우 모두 null 이 되어 같은 규칙(amount→0, urgent→false, reason→"", 필수값→NPE)으로 처리된다. 검증 도입 후에도 유지해야 할 성질(레거시 Map 은 둘을 구분했다 - 알려진 차이).</td></tr>
+<tr><td>상세 4</td><td>검증 실패 응답은 REQ-NF-002 의 오류 형식을 따른다.</td><td>SRS 없음</td><td>해당 코드 없음 (<code>@ExceptionHandler</code> 0건)</td><td class="v-no">미충족</td><td>REQ-NF-002 오류 형식 자체가 미구현.</td></tr>
+<tr><td>입력</td><td>요청 JSON</td><td>SRS 없음</td><td><code>ApprovalController.java:36, 44</code> (<code>@RequestBody</code> record)</td><td class="v-ok">충족</td><td>요청 JSON 을 DTO record 로 받는다(R11).</td></tr>
+<tr><td>출력</td><td>검증 실패 시 400 + 필드별 사유</td><td>SRS 없음</td><td>해당 코드 없음</td><td class="v-no">미충족</td><td>현재 500.</td></tr>
+<tr><td>제약 1</td><td>정상 요청의 응답과 동작은 바꾸지 않는다.</td><td>SRS 없음</td><td><code>approval/dto/ApprovalResponse.java:16-44</code></td><td class="v-ok">충족</td><td>현행 정상 응답은 <code>ApprovalControllerTest</code> 가 고정(기준선). 검증 도입 시 유지 대상.</td></tr>
+<tr><td>제약 2</td><td>검증 규칙을 컨트롤러 곳곳에 흩지 않고 요청 DTO 에 둔다.</td><td>SRS 없음</td><td><code>CreateApprovalRequest.java</code>, <code>ProcessRequest.java</code></td><td class="v-no">미충족</td><td>검증 규칙이 아직 어디에도 없다(DTO 에는 기본값 규칙만). 위치(DTO)는 준비되어 있음.</td></tr>
+</table>
+<h3>3.2 판정 요약</h3>
+<p>충족 3 / 부분 충족 0 / 미충족 5 / 불일치 0 / 확인 불가 0 (총 8항목)</p>
+
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table>
+<thead><tr><th>검증 기준(F열)</th><th>테스트</th><th>현재 상태</th></tr></thead>
+<tr><td>drafterId 를 빼고 기안하면 400 과 'drafterId' 사유가 온다.</td><td>테스트 없음</td><td class="v-no">현재 500(NPE). 생략 시 500 을 고정하는 테스트도 없음.</td></tr>
+<tr><td>정상 요청은 변경 전과 같은 응답을 받는다.</td><td><code>ApprovalControllerTest#결재_생성_응답은_필드_12개의_레거시_JSON이다</code>, <code>#금액과_긴급을_생략하면_금액_0_우선순위는_요청값으로_생성된다</code>, <code>#처리_API는_200과_빈_본문을_돌려주고_상신이_반영된다</code>, <code>#반려_요청에_reason을_빼면_반려사유가_빈_문자열로_저장된다</code></td><td class="v-ok">현재 green(기준선)</td></tr>
+</table>
+
+<h2>4. 구성 요소 설계</h2>
+<table>
+<thead><tr><th>구성 요소</th><th>책임</th><th>설계</th></tr></thead>
+<tr><td><code>pom.xml</code></td><td>검증 의존성</td><td><code>spring-boot-starter-validation</code> 추가 (현재 web · data-jpa · mariadb · test · h2 · devtools 뿐)</td></tr>
+<tr><td><code>CreateApprovalRequest</code> (변경)</td><td>기안 입력 규칙</td><td><code>@NotBlank String title</code>, <code>@NotNull Integer type</code>, <code>@NotNull Integer priority</code>, <code>@NotNull Long drafterId</code>, <code>@NotNull Long approverId</code>, <code>@PositiveOrZero Long amount</code> (null 은 compact 생성자가 0 으로 - 선택 필드 유지), <code>Boolean urgent</code> 그대로. 필드 이름 · 순서 · 타입 불변</td></tr>
+<tr><td><code>ProcessRequest</code> (변경)</td><td>처리 입력 규칙</td><td><code>@NotNull Long userId</code>, <code>@NotNull Integer action</code>, <code>String reason</code>(선택, ""). action 값 범위(1/2/3/9)는 REQ-NF-002 의 UNKNOWN_APPROVAL_ACTION 400 이 맡는다</td></tr>
+<tr><td><code>ApprovalController</code> (변경)</td><td>검증 트리거</td><td><code>create(@Valid @RequestBody CreateApprovalRequest request)</code>, <code>process(@PathVariable Long id, @Valid @RequestBody ProcessRequest request)</code> - 메서드 이름 · URL · 반환형 그대로</td></tr>
+<tr><td><code>common.error.PortalExceptionHandler</code> (REQ-NF-002 확장)</td><td>검증 예외 → 400</td><td><code>handleValidation(MethodArgumentNotValidException)</code> → <code>ErrorResponse("INVALID_REQUEST", "입력값을 확인하세요.", fieldErrors)</code>; <code>handleUnreadable(HttpMessageNotReadableException)</code> → 400 (예: <code>"type":"abc"</code>, 잘못된 JSON)</td></tr>
+<tr><td><code>common.error.FieldErrorDetail</code> (신규 record)</td><td>필드별 사유</td><td><code>record FieldErrorDetail(String field, String reason)</code></td></tr>
+<tr><td><code>ApprovalService</code></td><td>-</td><td>변경 없음. public 시그니처 <code>create(8개 인자)</code> · <code>processApproval(4개 인자)</code> 유지. 서비스 직접 호출 경로는 웹 검증을 타지 않는다(특성화 테스트 경로).</td></tr>
+</table>
+
+<h2>5. 인터페이스 설계</h2>
+<h3>5.1 POST /api/approvals (URL · 메서드 · 성공 응답 변경 없음)</h3>
+<table>
+<thead><tr><th>필드</th><th>타입</th><th>규칙</th><th>생략 · null 시 현재</th><th>설계 후</th></tr></thead>
+<tr><td>title</td><td>String</td><td>필수, 공백 불가</td><td>null 로 저장(200)</td><td>400 · <code>title</code></td></tr>
+<tr><td>content</td><td>String</td><td>선택</td><td>null 저장</td><td>그대로</td></tr>
+<tr><td>type</td><td>int</td><td>필수</td><td>500(NPE)</td><td>400 · <code>type</code></td></tr>
+<tr><td>priority</td><td>int</td><td>필수</td><td>500(NPE)</td><td>400 · <code>priority</code></td></tr>
+<tr><td>drafterId</td><td>Long</td><td>필수</td><td>500(NPE)</td><td>400 · <code>drafterId</code></td></tr>
+<tr><td>approverId</td><td>Long</td><td>필수</td><td>500(NPE)</td><td>400 · <code>approverId</code></td></tr>
+<tr><td>amount</td><td>long</td><td>0 이상</td><td>0 (음수는 그대로 저장)</td><td>생략 · null → 0, 음수 → 400 · <code>amount</code></td></tr>
+<tr><td>urgent</td><td>boolean</td><td>선택</td><td>false</td><td>그대로</td></tr>
+</table>
+<h3>5.2 POST /api/approvals/{id}/process</h3>
+<table>
+<thead><tr><th>필드</th><th>타입</th><th>규칙</th><th>현재</th><th>설계 후</th></tr></thead>
+<tr><td>userId</td><td>Long</td><td>필수</td><td>500(NPE)</td><td>400 · <code>userId</code> (REQ-SE-002 이후 로그인 사용자로 대체)</td></tr>
+<tr><td>action</td><td>int</td><td>필수</td><td>500(NPE)</td><td>400 · <code>action</code></td></tr>
+<tr><td>reason</td><td>String</td><td>선택</td><td>""</td><td>그대로</td></tr>
+</table>
+<h3>5.3 검증 실패 응답 예시 (REQ-NF-002 형식)</h3>
+<pre>HTTP/1.1 400
+{"code":"INVALID_REQUEST","message":"입력값을 확인하세요.",
+ "fieldErrors":[{"field":"drafterId","reason":"필수 값입니다."}]}</pre>
+
+<h2>6. 데이터 설계</h2>
+<p>DB 스키마 · 저장값 변경 없음(type 1~4 · priority 1~3 · status 0/1/2/3/9 정수 그대로). 검증을 통과한 요청만 기존 경로로 저장된다. 유형 · 우선순위 <b>값 범위</b> 검사(1~4, 1~3)는 F열에 없으므로 이 설계에 넣지 않는다(R07 enum 화와 함께 후속 검토).</p>
+
+<h2>7. 처리 흐름</h2>
+<table>
+<thead><tr><th>단계</th><th>설계 후</th><th>현재</th></tr></thead>
+<tr><td>1 JSON 역직렬화</td><td>형식 오류 → 400 (HttpMessageNotReadableException)</td><td>스프링 기본 400</td></tr>
+<tr><td>2 compact 생성자</td><td>amount null→0, urgent null→false, reason null→"" (그대로)</td><td>동일</td></tr>
+<tr><td>3 Bean Validation (<code>@Valid</code>)</td><td>위반 → 400 + fieldErrors, 서비스 호출 없음</td><td>없음</td></tr>
+<tr><td>4 <code>toCommand()</code></td><td>필수값이 보장되어 NPE 경로 소멸</td><td>NPE → 500</td></tr>
+<tr><td>5 서비스 → 저장 → 감사로그 → 응답</td><td>변경 없음</td><td>동일</td></tr>
+</table>
+
+<h2>8. 예외 · 경계 처리</h2>
+<table>
+<thead><tr><th>경우</th><th>현재</th><th>설계</th><th>레거시 보존 여부</th></tr></thead>
+<tr><td><code>"amount": null</code> 명시</td><td>0 (레거시 Map 시절은 500 - 알려진 차이)</td><td>0 (키 생략과 같은 규칙)</td><td>현행 보존</td></tr>
+<tr><td><code>"reason": null</code> 명시</td><td>""</td><td>""</td><td>현행 보존</td></tr>
+<tr><td>title <code>" "</code> (공백)</td><td>저장</td><td>400 (@NotBlank). 단 일정 제목은 공백 통과 규칙(Schedule.isCreatable) - 결재와 별개</td><td>변경(재설계)</td></tr>
+<tr><td>필수 필드 누락</td><td>500</td><td>400</td><td>변경(재설계)</td></tr>
+<tr><td>음수 금액</td><td>저장</td><td>400</td><td>변경(재설계)</td></tr>
+<tr><td>서비스 직접 호출(특성화 테스트)</td><td>검증 없음</td><td>그대로 - 웹 계층 검증만 추가</td><td>보존</td></tr>
+</table>
+
+<h2>9. 검증 설계</h2>
+<table>
+<thead><tr><th>검증 기준</th><th>테스트</th></tr></thead>
+<tr><td>drafterId 생략 → 400 + 'drafterId'</td><td>신규 <code>ApprovalRequestValidationTest#기안자_id를_빼고_기안하면_400과_drafterId_사유가_온다</code></td></tr>
+<tr><td>정상 요청 응답 동일</td><td>기존 <code>ApprovalControllerTest</code> 4개(3.3절) 수정 없이 green</td></tr>
+</table>
+<pre>@Test void 기안자_id를_빼고_기안하면_400과_drafterId_사유가_온다()
+@Test void 제목이_공백이면_400과_title_사유가_온다()
+@Test void 금액이_음수면_400과_amount_사유가_온다()
+@Test void 금액을_null로_명시하면_생략과_같이_0으로_생성된다()
+@Test void 처리_요청에_action을_빼면_400과_action_사유가_온다()
+@Test void 처리_요청에_userId를_빼면_400과_userId_사유가_온다()
+@Test void 여러_필드가_빠지면_필드별_사유가_모두_온다()
+
+// 예: 변수는 영어
+String requestWithoutDrafter = """
+        {"title":"노트북 구매","type":1,"priority":2,"approverId":2}""";
+mockMvc.perform(post("/api/approvals").contentType(MediaType.APPLICATION_JSON).content(requestWithoutDrafter))
+    .andExpect(status().isBadRequest())
+    .andExpect(jsonPath("$.fieldErrors[?(@.field == 'drafterId')]").exists());</pre>
+<p>기존 특성화 테스트 중 필드 생략 → 500 을 고정한 것은 없다(Grep: <code>is5xx</code> 0건). 따라서 기대값이 바뀌는 기존 테스트는 없다.</p>
+
+<h2>10. 검토 의견 · 후속 과제</h2>
+<table>
+<thead><tr><th>구분</th><th>내용</th></tr></thead>
+<tr class="keep"><td>보존 대상</td><td>URL · HTTP 메서드, 요청 JSON 필드 이름 · 타입, 생략 시 기본값(amount 0 · urgent false · reason ""), 성공 응답(12필드 · 200 빈 본문), 서비스 public 시그니처, DB 저장값.</td></tr>
+<tr class="improve"><td>개선 대상</td><td>필수값 누락 500 → 400, title 누락 · 음수 금액 허용 → 400. <b>오류 응답이 바뀌는 동작 변경이므로 리팩토링이 아닌 재설계 단계</b>에서 진행한다(REQ-NF-002 와 같은 단계).</td></tr>
+<tr class="improve"><td>개선 대상</td><td>유형 · 우선순위 값 범위 검증은 F열 범위 밖 - R07(TYPE · PRIORITY enum) 때 함께 정한다.</td></tr>
+<tr><td>연계 요구사항</td><td>REQ-NF-002(오류 형식 선행 필요). REQ-SE-002 적용 후에는 <code>drafterId</code> · <code>userId</code> 를 로그인 사용자로 정하므로, 이 두 필드의 필수 검증은 이행 기간(본문 값 사용) 동안만 의미가 있다.</td></tr>
+</table>
+</main>

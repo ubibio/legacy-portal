@@ -1,0 +1,73 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="sds.css">
+<title>SDS - REQ-F-010 공지 게시 및 긴급공지 전체 메일</title>
+<main class="sds" data-id="REQ-F-010">
+<div class="cover"><h1>SDS - REQ-F-010 공지 게시 및 긴급공지 전체 메일</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<h2>1. 개요</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td>요구사항 ID</td><td>REQ-F-010</td></tr><tr><td>요구사항명</td><td>공지 게시 및 긴급공지 전체 메일</td></tr><tr><td>분류 (대/중/소)</td><td>PORTAL / Notice / Publish</td></tr><tr><td>우선순위</td><td>Medium</td></tr><tr><td>진행현황</td><td>테스트중</td></tr><tr><td>엑셀 비고</td><td>소스 역추출.</td></tr><tr><td>요약</td><td>NoticeService.publish(id, userId) 가 공지 · 사용자를 찾고 Notice.publish(User) 에 게시를 시킨다(팀장 이상 · 임시일 때만 0→1). 긴급(2)이면 전체 사용자에게 '[긴급공지] {제목}' 메일, 이어서 감사로그 'NOTICE PUBLISH'. 조건 불만족은 조용히 무시. 모든 문장이 소스와 일치하고 검증 기준이 특성화 테스트로 고정돼 있다.</td></tr><tr><td>분석 범위</td><td>SRS 없음 (엑셀 F열 · 소스만으로 분석). 소스 위치의 경로 접두 <code>src/main/java/kr/hull/portal/</code> 는 줄여 적는다 (화면은 <code>src/main/resources/static/</code>, 테스트는 <code>src/test/java/kr/hull/portal/</code>).</td></tr></tbody></table>
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<div class="raw">[개요]
+게시 권한자가 임시 공지를 게시하고, 긴급 공지면 전 직원에게 메일로 알린다.
+
+[상세 기능 요구사항]
+1) 공지 ID 와 요청자 ID 로 게시를 처리한다.
+2) 요청자 직급이 팀장(2) 이상이고 공지가 임시(0) 상태일 때만 게시(1)로 바꾼다.
+3) 게시된 공지의 분류가 긴급(2)이면 모든 사용자에게 '[긴급공지] {제목}' 메일을 보낸다.
+4) 게시 성공 시 감사로그 'NOTICE PUBLISH' 를 남긴다.
+5) 상태 표시명: 0=임시, 1=게시, 9=내림, 그 외 '알수없음'.
+
+[입력 / 출력]
+- 입력: 공지 ID, 요청자 ID
+- 출력: 상태 변경(0→1), 긴급 시 전체 사용자 메일, 감사로그 1줄
+
+[제약 조건 / 비기능 요구사항]
+- 공지 · 사용자 없음, 권한 없음, 이미 게시됨이면 조용히 무시한다(현재 동작 보존).
+- 권한 판정은 User.hasNoticePublishAuthority 한 곳에서만 한다.
+- 현재 게시 내림(9)으로 바꾸는 기능은 없다.
+
+[검증 기준]
+- 사원이 게시하면 상태가 0 으로 남는다.
+- 긴급 공지 게시 시 사용자 수만큼 메일이 출력되고, 일반 공지는 메일이 없다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\notice (Notice.publish · NoticeService.publish)
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</div>
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표 (F열 문장 ↔ 소스)</h3>
+<table><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치(파일:줄)</th><th>판정</th><th>비고</th></tr></thead><tbody><tr><td>상세 1</td><td>공지 ID 와 요청자 ID 로 게시를 처리한다.</td><td>SRS 없음</td><td><code>notice/NoticeService.java:78</code></td><td><span class="v-ok">충족</span></td><td><code>public void publish(Long id, Long userId)</code>.</td></tr><tr><td>상세 2</td><td>요청자 직급이 팀장(2) 이상이고 공지가 임시(0) 상태일 때만 게시(1)로 바꾼다.</td><td>SRS 없음</td><td><code>notice/Notice.java:84-93</code> · <code>user/User.java:30,40-42</code></td><td><span class="v-ok">충족</span></td><td>권한 → 상태 순으로 검사, 둘 다 맞을 때만 status = 1.</td></tr><tr><td>상세 3</td><td>게시된 공지의 분류가 긴급(2)이면 모든 사용자에게 '[긴급공지] {제목}' 메일을 보낸다.</td><td>SRS 없음</td><td><code>notice/NoticeService.java:91-93,98-103</code> · <code>notice/Notice.java:96-98</code> · <code>common/MailFormat.java:19-21</code></td><td><span class="v-ok">충족</span></td><td>수신자 = <code>userRepository.findAll()</code> 전체(게시자 포함). 본문 '안녕하세요 {이름}님,\n긴급 공지가 게시되었습니다.\n제목: {제목}'.</td></tr><tr><td>상세 4</td><td>게시 성공 시 감사로그 'NOTICE PUBLISH' 를 남긴다.</td><td>SRS 없음</td><td><code>notice/NoticeService.java:94</code></td><td><span class="v-ok">충족</span></td><td>메일을 모두 보낸 뒤 기록.</td></tr><tr><td>상세 5</td><td>상태 표시명: 0=임시, 1=게시, 9=내림, 그 외 '알수없음'.</td><td>SRS 없음</td><td><code>notice/Notice.java:105-110</code> · <code>notice/NoticeService.java:106-108</code></td><td><span class="v-ok">충족</span></td><td></td></tr><tr><td>입력</td><td>입력: 공지 ID, 요청자 ID</td><td>SRS 없음</td><td><code>notice/NoticeService.java:78</code></td><td><span class="v-ok">충족</span></td><td></td></tr><tr><td>출력</td><td>출력: 상태 변경(0→1), 긴급 시 전체 사용자 메일, 감사로그 1줄</td><td>SRS 없음</td><td><code>notice/NoticeService.java:87-94</code></td><td><span class="v-ok">충족</span></td><td>저장 → 메일 → 로그 순서.</td></tr><tr><td>제약 1</td><td>공지 · 사용자 없음, 권한 없음, 이미 게시됨이면 조용히 무시한다(현재 동작 보존).</td><td>SRS 없음</td><td><code>notice/NoticeService.java:79-89</code> · <code>notice/Notice.java:85-90</code></td><td><span class="v-ok">충족</span></td><td>예외 · 로그 · 메일 없이 return. 단 공지 id 가 null 이면 저장소 예외(별도 보존).</td></tr><tr><td>제약 2</td><td>권한 판정은 User.hasNoticePublishAuthority 한 곳에서만 한다.</td><td>SRS 없음</td><td><code>user/User.java:40-42</code> · <code>notice/Notice.java:85</code></td><td><span class="v-ok">충족</span></td><td>src/main 에 <code>role &gt;=</code> 비교는 User 의 두 메서드뿐(결재 권한은 별개 규칙).</td></tr><tr><td>제약 3</td><td>현재 게시 내림(9)으로 바꾸는 기능은 없다.</td><td>SRS 없음</td><td><code>notice/NoticeService.java</code> 전체 · <code>notice/Notice.java:23-25</code></td><td><span class="v-ok">충족</span></td><td>서비스 · 도메인 메서드 없음. public <code>setStatus(int)</code> 로만 가능(테스트 준비용).</td></tr></tbody></table>
+<h3>3.2 판정 요약</h3>
+<p><span class="v-ok">충족 10</span> / <span class="v-part">부분 충족 0</span> / <span class="v-no">미충족 0</span> / <span class="v-diff">불일치 0</span> / <span class="v-unk">확인 불가 0</span></p>
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table><thead><tr><th>검증 기준(F열)</th><th>고정하는 테스트</th><th>비고</th></tr></thead><tbody><tr><td>사원이 게시하면 상태가 0 으로 남는다.</td><td><code>NoticeServiceCharacterizationTest#사원이_게시하면_조용히_무시되고_상태0_그대로다</code></td><td>로그 · 메일 없음도 검사.</td></tr><tr><td>긴급 공지 게시 시 사용자 수만큼 메일이 출력되고, 일반 공지는 메일이 없다.</td><td><code>NoticeServiceCharacterizationTest#긴급_공지를_게시하면_전체_사용자에게_긴급공지_메일이_한통씩_나간다</code> · <code>NoticeServiceCharacterizationTest#일반_공지를_게시하면_메일은_나가지_않는다</code></td><td>사용자 3명 → 메일 3통, 제목 · 본문 전체 비교.</td></tr></tbody></table>
+<h2>4. 구성 요소 설계</h2>
+<table><thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처</th><th>설계 방침</th></tr></thead><tbody><tr><td>NoticeService</td><td>게시 흐름(조회 → 시키기 → 저장 → 메일 → 로그)</td><td><code>public void publish(Long id, Long userId)</code><br><code>public String statusLabel(Notice notice)</code><br><code>private void notifyAllMembersOfEmergency(Notice notice)</code></td><td>public 시그니처 현행 유지</td></tr><tr><td>Notice (entity)</td><td>게시 조건 · 상태 변경 · 긴급 판정 · 라벨</td><td><code>boolean publish(User publisher)</code> · <code>boolean isEmergency()</code> · <code>String statusLabel()</code></td><td>false = 조용히 무시 신호</td></tr><tr><td>User (entity)</td><td>게시 권한 판정 단일 지점</td><td><code>boolean hasNoticePublishAuthority()</code></td><td>결재 권한(<code>hasApprovalAuthority</code>)과 합치지 않음</td></tr><tr><td>MailSender / MailFormat</td><td>메일 발송 · 제목 · 본문 양식</td><td><code>void send(String to, String subject, String body)</code> · <code>MailFormat.subject</code> · <code>MailFormat.body</code></td><td>문자열 현행 유지</td></tr><tr><td>AuditLogger</td><td>감사로그</td><td><code>void write(String action, Long id, Long userId)</code></td><td>현행 유지</td></tr></tbody></table>
+<h2>5. 인터페이스 설계</h2>
+<p>REST 엔드포인트 없음 (API 는 REQ-IF-003 범위, 초안 POST /api/notices/{id}/publish). 서비스 계약:</p><table><thead><tr><th>메서드</th><th>인자</th><th>반환</th><th>부수효과</th></tr></thead><tbody><tr><td><code>NoticeService.publish</code></td><td>id: Long (공지), userId: Long (요청자)</td><td>void</td><td>성공 시 status 1 저장, 긴급이면 전원 메일, 감사로그 1줄. 실패 조건은 아무것도 안 함</td></tr><tr><td><code>NoticeService.statusLabel</code></td><td>notice: Notice</td><td>String</td><td>0 임시 · 1 게시 · 9 내림 · 그 밖 알수없음</td></tr></tbody></table><h3>출력 예시 (긴급 공지, 수신자 1명분)</h3><pre>=== MAIL ===
+TO: kim@hull.kr
+SUBJECT: [긴급공지] 서버 점검 안내
+안녕하세요 김사원님,
+긴급 공지가 게시되었습니다.
+제목: 서버 점검 안내
+============
+[AUDIT] [2026-10-17 09:00:00] NOTICE PUBLISH id=1 by=2</pre>
+<h2>6. 데이터 설계</h2>
+<table><thead><tr><th>코드</th><th>값</th><th>의미</th></tr></thead><tbody><tr><td>notice.status</td><td>0 / 1 / 9</td><td>임시 / 게시 / 내림 (DB 정수 그대로)</td></tr><tr><td>notice.category</td><td>1 / 2 / 3</td><td>일반 / 긴급(메일 대상) / 인사</td></tr><tr><td>users.role</td><td>1 / 2 / 3</td><td>사원 / 팀장 / 임원 (2 이상 게시 가능)</td></tr></tbody></table><h3>상태 전이표 (publish)</h3><table><thead><tr><th>현재 상태</th><th>요청자</th><th>결과</th><th>부수효과</th></tr></thead><tbody><tr><td>0 임시</td><td>팀장 · 임원 (role ≥ 2)</td><td>1 게시</td><td>저장 · (긴급이면 메일) · 감사로그</td></tr><tr><td>0 임시</td><td>사원 (role 1)</td><td>0 그대로</td><td>없음</td></tr><tr><td>1 게시</td><td>누구든</td><td>1 그대로</td><td>없음</td></tr><tr><td>9 내림</td><td>누구든</td><td>9 그대로</td><td>없음</td></tr><tr><td>공지 · 사용자 없음</td><td>-</td><td>변화 없음</td><td>없음</td></tr></tbody></table>
+<h2>7. 처리 흐름</h2>
+<table><thead><tr><th>단계</th><th>처리</th><th>조건 불만족 시</th><th>소스</th></tr></thead><tbody><tr><td>1</td><td><code>noticeRepository.findById(id)</code></td><td>없으면 return (null id 는 예외)</td><td><code>NoticeService.java:79-82</code></td></tr><tr><td>2</td><td><code>userRepository.findById(userId)</code></td><td>없으면 return</td><td><code>NoticeService.java:83-86</code></td></tr><tr><td>3 가드</td><td><code>notice.publish(publisher)</code> - 권한(hasNoticePublishAuthority) → 상태 0 확인 → status 1</td><td>false 면 return</td><td><code>NoticeService.java:87-89</code> · <code>Notice.java:84-93</code></td></tr><tr><td>4 저장</td><td><code>noticeRepository.save(notice)</code></td><td>-</td><td><code>NoticeService.java:90</code></td></tr><tr><td>5 메일</td><td><code>notice.isEmergency()</code> 면 전체 사용자에게 한 통씩</td><td>긴급 아니면 생략</td><td><code>NoticeService.java:91-93,98-103</code></td></tr><tr><td>6 감사로그</td><td><code>NOTICE PUBLISH id={id} by={userId}</code></td><td>-</td><td><code>NoticeService.java:94</code></td></tr></tbody></table>
+<h2>8. 예외 · 경계 처리</h2>
+<table><thead><tr><th>경우</th><th>현재 동작</th><th>근거</th><th>레거시 보존 여부</th></tr></thead><tbody><tr><td>없는 공지 ID</td><td>예외 없이 무시</td><td><code>NoticeServiceCharacterizationTest#없는_공지_id로_게시하면_예외없이_무시된다</code></td><td>보존</td></tr><tr><td>없는 사용자 ID</td><td>예외 없이 무시, 상태 0</td><td><code>NoticeServiceCharacterizationTest#없는_사용자가_게시하면_예외없이_무시된다</code></td><td>보존</td></tr><tr><td>권한 없음(사원)</td><td>무시, 로그 · 메일 없음</td><td><code>NoticeServiceCharacterizationTest#사원이_게시하면_조용히_무시되고_상태0_그대로다</code></td><td>보존</td></tr><tr><td>이미 게시(1)</td><td>무시, 로그 1번만</td><td><code>NoticeServiceCharacterizationTest#이미_게시된_공지를_다시_게시하면_무시되고_로그도_한번만_남는다</code></td><td>보존</td></tr><tr><td>내림(9)</td><td>게시되지 않음</td><td><code>NoticeServiceCharacterizationTest#내림_상태9_공지는_게시되지_않는다</code></td><td>보존</td></tr><tr><td>공지 ID null</td><td>InvalidDataAccessApiUsageException</td><td><code>NoticeServiceCharacterizationTest#공지_id가_null이면_저장소에서_예외가_난다</code></td><td>보존 (결함 후보)</td></tr><tr><td>메일 발송 도중 실패</td><td>소스에 처리 없음 - 이미 저장된 상태 1 과 앞선 메일은 남고 감사로그는 안 남는 흐름 (테스트 없음)</td><td><code>NoticeService.java:90-94</code></td><td>보존 (개선 대상)</td></tr></tbody></table>
+<h2>9. 검증 설계</h2>
+<h3>9.1 검증 기준 ↔ 테스트 매핑</h3>
+<table><thead><tr><th>검증 기준</th><th>테스트(클래스#메서드)</th><th>판단</th></tr></thead><tbody><tr><td>사원 게시 → 상태 0</td><td><code>NoticeServiceCharacterizationTest#사원이_게시하면_조용히_무시되고_상태0_그대로다</code></td><td>충분</td></tr><tr><td>긴급 → 사용자 수만큼 메일</td><td><code>NoticeServiceCharacterizationTest#긴급_공지를_게시하면_전체_사용자에게_긴급공지_메일이_한통씩_나간다</code></td><td>충분</td></tr><tr><td>일반 → 메일 없음</td><td><code>NoticeServiceCharacterizationTest#일반_공지를_게시하면_메일은_나가지_않는다</code></td><td>충분 (인사 분류도 <code>#인사_공지를_게시해도_메일은_나가지_않는다</code>)</td></tr><tr><td>(보조) 메일 후 감사로그 순서</td><td><code>NoticeServiceCharacterizationTest#긴급_공지는_메일을_모두_보낸_뒤에_게시_감사로그를_남긴다</code></td><td>충분</td></tr><tr><td>(보조) 상태 표시명</td><td><code>NoticeServiceCharacterizationTest#상태_라벨은_0임시_1게시_9내림_그밖은_알수없음이다</code></td><td>충분</td></tr></tbody></table>
+<h3>9.2 빠진 테스트 제안</h3>
+<p>기존 특성화 테스트 본문은 고치지 않고, 새 테스트로만 더한다 (메서드명 한글 시나리오, 필드 · 변수는 영어).</p>
+<table><thead><tr><th>제안 테스트 메서드</th><th>준비 · 실행 · 기대</th><th>넣을 곳</th></tr></thead><tbody><tr><td><code>이미_게시된_긴급_공지를_다시_게시하면_메일이_추가되지_않는다()</code></td><td>긴급 공지 게시 후 재게시 → '=== MAIL ===' 수가 사용자 수 그대로</td><td>NoticeServiceCharacterizationTest 옆 새 테스트 클래스</td></tr><tr><td><code>사원이_긴급_공지를_게시하면_메일이_나가지_않는다()</code></td><td>이미 사원 테스트가 메일 없음을 검사 - 중복이면 생략 가능. 대신 <code>없는_사용자가_긴급_공지를_게시하면_메일이_나가지_않는다()</code></td><td>같은 곳</td></tr></tbody></table>
+<h2>10. 검토 의견 · 후속 과제</h2>
+<table><thead><tr><th>구분</th><th>내용</th></tr></thead><tbody><tr class="keep"><td>보존 대상</td><td>public <code>publish(Long, Long)</code> · <code>statusLabel(Notice)</code> 시그니처, 상태 0/1/9 · 분류 code DB 값, 권한 기준 팀장(2) 이상.</td></tr><tr class="keep"><td>보존 대상</td><td>조용히 무시(없음 · 권한 없음 · 이미 게시 · 내림), null id 예외, 저장 → 메일 → 감사로그 순서, 메일 · 로그 문자열.</td></tr><tr class="improve"><td>개선 대상</td><td>조용한 실패 → 404/403/409 오류 응답으로 (REQ-NF-002). 리팩토링 단계에선 하지 않는다.</td></tr><tr class="improve"><td>개선 대상</td><td>게시 내림(9) 기능 부재 - 필요 시 <code>Notice.takeDown(User)</code> + 서비스 메서드 신설(새 기능이라 별도 요구사항).</td></tr><tr class="improve"><td>개선 대상</td><td>전 직원 메일을 트랜잭션 안에서 동기 발송 - 사용자가 많거나 발송 실패 시 게시 · 로그 일관성 문제. 이벤트 발행 후 커밋 뒤 비동기 발송 검토.</td></tr><tr class="improve"><td>개선 대상</td><td>status · category int → NoticeStatus · NoticeCategory enum + AttributeConverter (R07).</td></tr><tr class="improve"><td>개선 대상</td><td>REST API 부재 → REQ-IF-003.</td></tr></tbody></table>
+<p><b>연계 요구사항</b>: REQ-F-009 (공지 작성), REQ-IF-003 (공지 REST API), REQ-NF-002 (조용한 실패 → 오류 응답)</p>
+</main>

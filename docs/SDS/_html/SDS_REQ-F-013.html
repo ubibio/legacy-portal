@@ -1,0 +1,162 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="sds.css">
+<title>SDS - REQ-F-013</title>
+<div class="cover"><h1>SDS - REQ-F-013 사용자 목록 조회 및 초기 사용자 생성</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<main class="sds" data-id="REQ-F-013">
+
+<h2>1. 개요</h2>
+<table>
+<tr><th style="width:22%">요구사항 ID</th><td>REQ-F-013</td></tr>
+<tr><th>요구사항명</th><td>사용자 목록 조회 및 초기 사용자 생성</td></tr>
+<tr><th>대 / 중 / 소분류</th><td>PORTAL / User / List</td></tr>
+<tr><th>우선순위</th><td>Medium</td></tr>
+<tr><th>진행현황</th><td>테스트중 (비고: 소스 역추출.)</td></tr>
+<tr><th>요약</th><td><code>GET /api/users</code> 가 전체 사용자(id·name·email·role·dept)를 JSON 배열로 돌려주고, 애플리케이션 시작 시 사용자가 0명이면 <code>DataSeeder</code> 가 기본 사용자 4명을 만든다. 화면(index.html)은 이 목록을 로그인 사용자·결재자 선택지로 쓰고 role 숫자로 직급명을 만든다.</td></tr>
+</table>
+
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<pre class="raw">[개요]
+화면이 로그인 대상과 결재자 선택지로 쓰는 사용자 목록을 제공하고, 빈 DB 에는 기본 사용자를 만든다.
+
+[상세 기능 요구사항]
+1) GET /api/users 로 전체 사용자(id · name · email · role · dept)를 반환한다.
+2) 직급(role): 1=사원, 2=팀장, 3=임원. 팀장 이상이 결재 · 공지 게시 권한을 가진다.
+3) 애플리케이션 시작 시 사용자가 0명이면 김사원(1) · 박팀장(2) · 이임원(3) · 최사원(1) 4명을 만든다.
+
+[입력 / 출력]
+- 입력: 없음
+- 출력: 사용자 목록 JSON, 시작 로그 '&gt;&gt; 초기 사용자 4명 생성 완료'
+
+[제약 조건 / 비기능 요구사항]
+- 이미 사용자가 있으면 초기 데이터를 다시 넣지 않는다.
+- 응답 필드 형식을 바꾸지 않는다(화면이 role 숫자로 직급명을 만든다).
+
+[검증 기준]
+- 빈 DB 로 시작하면 /api/users 가 4명을 반환한다.
+- 재시작해도 MariaDB 사용 시 사용자 수가 늘지 않는다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\user (User · UserController)
+src\main\java\kr\hull\portal\DataSeeder.java
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</pre>
+
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표</h3>
+<table>
+<colgroup><col style="width:7%"><col style="width:24%"><col style="width:7%"><col style="width:20%"><col style="width:8%"><col style="width:34%"></colgroup><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead>
+<tr><td>상세 1</td><td>GET /api/users 로 전체 사용자(id · name · email · role · dept)를 반환한다.</td><td>SRS 없음</td><td><code>user/UserController.java:13, 22-25</code>, <code>user/User.java:23-28</code></td><td class="v-ok">충족</td><td><code>@RequestMapping("/api/users")</code> + <code>@GetMapping</code> → <code>userRepo.findAll()</code>. 엔티티 직접 직렬화, 필드 5개(<code>has*</code> 메서드는 Jackson getter 아님 - 테스트로 5개 확인).</td></tr>
+<tr><td>상세 2</td><td>직급(role): 1=사원, 2=팀장, 3=임원. 팀장 이상이 결재 · 공지 게시 권한을 가진다.</td><td>SRS 없음</td><td><code>user/User.java:27, 30, 35-42</code>, <code>approval/Approval.java:192</code>, <code>notice/Notice.java:85</code></td><td class="v-ok">충족</td><td><code>hasApprovalAuthority()</code> · <code>hasNoticePublishAuthority()</code> 모두 <code>role &gt;= 2</code>. role 은 int(1/2/3) 저장.</td></tr>
+<tr><td>상세 3</td><td>애플리케이션 시작 시 사용자가 0명이면 김사원(1) · 박팀장(2) · 이임원(3) · 최사원(1) 4명을 만든다.</td><td>SRS 없음</td><td><code>DataSeeder.java:13, 22-27</code></td><td class="v-ok">충족</td><td><code>CommandLineRunner</code>. kim/park/lee/choi@hull.kr, 부서 개발1팀·개발1팀·경영지원·개발2팀.</td></tr>
+<tr><td>입력</td><td>입력: 없음</td><td>SRS 없음</td><td><code>user/UserController.java:22-23</code></td><td class="v-ok">충족</td><td>파라미터 없음.</td></tr>
+<tr><td>출력 1</td><td>출력: 사용자 목록 JSON</td><td>SRS 없음</td><td><code>user/UserController.java:23-24</code></td><td class="v-ok">충족</td><td><code>List&lt;User&gt;</code> → JSON 배열.</td></tr>
+<tr><td>출력 2</td><td>시작 로그 '&gt;&gt; 초기 사용자 4명 생성 완료'</td><td>SRS 없음</td><td><code>DataSeeder.java:28</code></td><td class="v-ok">충족</td><td><code>System.out.println</code>. 문자열을 고정하는 테스트는 없음(9절 제안).</td></tr>
+<tr><td>제약 1</td><td>이미 사용자가 있으면 초기 데이터를 다시 넣지 않는다.</td><td>SRS 없음</td><td><code>DataSeeder.java:23</code></td><td class="v-ok">충족</td><td><code>if (userRepo.count() &gt; 0) return;</code>. 단 <code>application.properties:12</code> <code>ddl-auto=create-drop</code> 이라 재시작 시 테이블이 지워져 매번 다시 4명이 생성된다(10절).</td></tr>
+<tr><td>제약 2</td><td>응답 필드 형식을 바꾸지 않는다(화면이 role 숫자로 직급명을 만든다).</td><td>SRS 없음</td><td><code>user/User.java:23-28</code>, <code>static/index.html:91-97</code></td><td class="v-ok">충족</td><td>화면 <code>roleName(r)</code>: 3→임원, 2→팀장, 그 외→사원. role 은 숫자로 응답.</td></tr>
+</table>
+<h3>3.2 판정 요약</h3>
+<p>충족 <b>8</b> / 부분 충족 <b>0</b> / 미충족 <b>0</b> / 불일치 <b>0</b> / 확인 불가 <b>0</b></p>
+
+<h2>4. 구성 요소 설계</h2>
+<table>
+<thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처 (현행 유지)</th></tr></thead>
+<tr><td><code>kr.hull.portal.user.UserController</code> (@RestController)</td><td>사용자 목록 API</td><td><code>public List&lt;User&gt; all()</code></td></tr>
+<tr><td><code>kr.hull.portal.user.User</code> (@Entity, 테이블 <code>users</code>)</td><td>사용자 데이터 + 권한 판단</td><td><code>public boolean hasApprovalAuthority()</code>, <code>public boolean hasNoticePublishAuthority()</code>, getter/setter 5쌍</td></tr>
+<tr><td><code>kr.hull.portal.user.UserRepository</code></td><td>사용자 저장·조회</td><td><code>JpaRepository&lt;User, Long&gt;</code> (<code>findAll</code>, <code>count</code>, <code>save</code>)</td></tr>
+<tr><td><code>kr.hull.portal.DataSeeder</code> (@Component, CommandLineRunner)</td><td>빈 DB 초기 사용자 생성</td><td><code>public void run(String... args)</code></td></tr>
+</table>
+<p>설계 제약: 엔티티를 API 에 직접 노출 중이다. DTO(record) 분리 시에도 JSON 필드 5개·이름·타입·순서를 그대로 유지한다(CLAUDE.md 요청/응답 형식 변경 금지).</p>
+
+<h2>5. 인터페이스 설계</h2>
+<table>
+<thead><tr><th>항목</th><th>값</th></tr></thead>
+<tr><td>엔드포인트</td><td><code>GET /api/users</code></td></tr>
+<tr><td>요청</td><td>본문·파라미터 없음</td></tr>
+<tr><td>응답</td><td>200 OK, <code>application/json</code>, 사용자 객체 배열</td></tr>
+<tr><td>오류 동작</td><td>업무 오류 분기 없음. 사용자가 0명이면 빈 배열 <code>[]</code></td></tr>
+</table>
+<table>
+<thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+<tr><td>id</td><td>number (Long)</td><td>사용자 ID</td></tr>
+<tr><td>name</td><td>string</td><td>이름</td></tr>
+<tr><td>email</td><td>string</td><td>메일 주소 (알림 수신)</td></tr>
+<tr><td>role</td><td>number (int)</td><td>1=사원 · 2=팀장 · 3=임원</td></tr>
+<tr><td>dept</td><td>string</td><td>부서</td></tr>
+</table>
+<p>응답 예시 (초기 데이터):</p>
+<pre>[{"id":1,"name":"김사원","email":"kim@hull.kr","role":1,"dept":"개발1팀"},
+ {"id":2,"name":"박팀장","email":"park@hull.kr","role":2,"dept":"개발1팀"},
+ {"id":3,"name":"이임원","email":"lee@hull.kr","role":3,"dept":"경영지원"},
+ {"id":4,"name":"최사원","email":"choi@hull.kr","role":1,"dept":"개발2팀"}]</pre>
+
+<h2>6. 데이터 설계</h2>
+<table>
+<thead><tr><th>엔티티 / 테이블</th><th>컬럼</th><th>타입</th><th>비고</th></tr></thead>
+<tr><td rowspan="5"><code>User</code> / <code>users</code></td><td>id</td><td>BIGINT (IDENTITY)</td><td>PK</td></tr>
+<tr><td>name</td><td>VARCHAR</td><td></td></tr>
+<tr><td>email</td><td>VARCHAR</td><td></td></tr>
+<tr><td>role</td><td>INT</td><td>1=사원 · 2=팀장 · 3=임원 (DB 정수 그대로. enum 화 시 <code>@Convert</code>+<code>AttributeConverter</code>, ORDINAL·STRING 금지)</td></tr>
+<tr><td>dept</td><td>VARCHAR</td><td></td></tr>
+</table>
+<h3>초기 데이터</h3>
+<table>
+<thead><tr><th>id(생성 순)</th><th>name</th><th>email</th><th>role</th><th>dept</th></tr></thead>
+<tr><td>1</td><td>김사원</td><td>kim@hull.kr</td><td>1</td><td>개발1팀</td></tr>
+<tr><td>2</td><td>박팀장</td><td>park@hull.kr</td><td>2</td><td>개발1팀</td></tr>
+<tr><td>3</td><td>이임원</td><td>lee@hull.kr</td><td>3</td><td>경영지원</td></tr>
+<tr><td>4</td><td>최사원</td><td>choi@hull.kr</td><td>1</td><td>개발2팀</td></tr>
+</table>
+<p>상태 전이: 해당 없음 (사용자에 상태 컬럼 없음).</p>
+
+<h2>7. 처리 흐름</h2>
+<h3>7.1 시작 시 초기화</h3>
+<table>
+<thead><tr><th>순서</th><th>단계</th><th>처리</th><th>소스</th></tr></thead>
+<tr><td>1</td><td>가드</td><td><code>userRepo.count() &gt; 0</code> 이면 종료</td><td><code>DataSeeder.java:23</code></td></tr>
+<tr><td>2</td><td>저장</td><td>4명 순서대로 <code>save</code></td><td><code>DataSeeder.java:24-27</code></td></tr>
+<tr><td>3</td><td>로그</td><td><code>&gt;&gt; 초기 사용자 4명 생성 완료</code> 콘솔 출력</td><td><code>DataSeeder.java:28</code></td></tr>
+</table>
+<h3>7.2 목록 조회</h3>
+<table>
+<thead><tr><th>순서</th><th>처리</th><th>소스</th></tr></thead>
+<tr><td>1</td><td><code>GET /api/users</code> 수신</td><td><code>UserController.java:13, 22</code></td></tr>
+<tr><td>2</td><td><code>userRepo.findAll()</code></td><td><code>UserController.java:24</code></td></tr>
+<tr><td>3</td><td>엔티티 목록을 JSON 직렬화해 200 응답</td><td>Spring MVC 기본</td></tr>
+</table>
+
+<h2>8. 예외 · 경계 처리</h2>
+<table>
+<thead><tr><th>상황</th><th>현재 동작</th><th>레거시 보존 여부</th></tr></thead>
+<tr><td>사용자 1명 이상 존재 상태로 시작</td><td>초기 데이터 미삽입, 로그 없음</td><td>보존</td></tr>
+<tr><td>초기 4명 중 일부만 남은 상태</td><td>count &gt; 0 이라 보충하지 않음</td><td>보존</td></tr>
+<tr><td>MariaDB 재시작</td><td><code>ddl-auto=create-drop</code> 으로 테이블이 재생성되어 다시 4명 (누적 증가 없음)</td><td>보존 (설정 사항)</td></tr>
+<tr><td>사용자 0명 상태에서 조회</td><td>빈 배열</td><td>보존</td></tr>
+</table>
+
+<h2>9. 검증 설계</h2>
+<table>
+<thead><tr><th>검증 기준 (F열)</th><th>고정 테스트</th></tr></thead>
+<tr><td>빈 DB 로 시작하면 /api/users 가 4명을 반환한다.</td><td><code>ApprovalControllerTest#사용자_목록은_초기_사용자_4명을_5개_필드로_돌려준다</code></td></tr>
+<tr><td>재시작해도 MariaDB 사용 시 사용자 수가 늘지 않는다.</td><td>테스트 없음 (MariaDB 재시작 자체는 수동 확인). 가드 동작은 <code>RequirementAcceptanceTest#초기_데이터를_다시_넣어도_사용자_수가_늘지_않는다</code> 로 대신 보증</td></tr>
+</table>
+<p>보조: 권한 규칙 - <code>NoticeServiceCharacterizationTest#사원이_게시하면_조용히_무시되고_상태0_그대로다</code>, <code>#임원도_게시할_수_있다</code>, <code>ApprovalServiceTest#결재자로_지정된_사원이_승인하면_조용히_무시된다</code>.</p>
+<h3>추가 테스트 제안</h3>
+<table>
+<thead><tr><th>제안 메서드명</th><th>내용 (변수는 영어)</th></tr></thead>
+<tr><td><code>빈_DB에서_초기화하면_시작_로그가_한번_찍힌다(CapturedOutput output)</code></td><td><code>userRepository.deleteAll()</code> 후 <code>dataSeeder.run()</code> → 출력에 "&gt;&gt; 초기 사용자 4명 생성 완료" 1회, <code>long userCount</code> = 4</td></tr>
+<tr><td><code>사용자가_있으면_시작_로그가_찍히지_않는다(CapturedOutput output)</code></td><td><code>int outputLengthBefore</code> 기록 → <code>dataSeeder.run()</code> → 이후 출력에 해당 문구 없음</td></tr>
+<tr><td><code>사용자_목록의_role은_숫자로_응답된다()</code></td><td>MockMvc <code>$[2].role</code> 이 숫자 3 (문자 "EXECUTIVE" 등이 아님) - enum 도입 대비</td></tr>
+</table>
+
+<h2>10. 검토 의견 · 후속 과제</h2>
+<table>
+<thead><tr><th>구분</th><th>내용</th></tr></thead>
+<tr class="keep"><td>보존 대상</td><td><code>GET /api/users</code> URL·메서드, JSON 필드 5개(id·name·email·role·dept)와 role 숫자 표현, 초기 4명의 이름·이메일·role·부서·생성 순서, 시작 로그 문자열, "0명일 때만 삽입" 가드, DB role 정수 1/2/3, 권한 판정 <code>role &gt;= 2</code>.</td></tr>
+<tr class="improve"><td>개선 대상</td><td>(1) 엔티티 직접 노출 → <code>UserResponse</code> record DTO 분리(필드 동일). (2) 필드명 <code>userRepo</code> 약어 → <code>userRepository</code>(UserController·DataSeeder, 네이밍 규칙). (3) 매직넘버 1/2/3 → <code>UserRole</code> enum + <code>AttributeConverter</code>(R07). (4) <code>System.out.println</code> → 로거. (5) <code>ddl-auto=create-drop</code> 때문에 MariaDB 에서도 재시작마다 데이터가 지워진다 - "재시작해도 늘지 않는다"는 가드가 아니라 스키마 재생성 덕분에 성립. 운영 데이터 보존이 필요하면 <code>update</code>/<code>validate</code> + 마이그레이션 검토(REQ-DA-002 · REQ-SE-001 과 함께).</td></tr>
+<tr><td>연계 요구사항</td><td>REQ-F-003/004(결재 권한), REQ-F-010(공지 게시 권한), REQ-IF-001(메일 수신 주소), REQ-DA-002(DB 선택)</td></tr>
+</table>
+</main>

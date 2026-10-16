@@ -1,0 +1,170 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>SDS REQ-F-001</title><link rel="stylesheet" href="sds.css"></head><body>
+<main class="sds" data-id="REQ-F-001">
+<div class="cover"><h1>SDS - REQ-F-001 결재 문서 기안(임시저장) 생성</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<h2>1. 개요</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>요구사항 ID</td><td>REQ-F-001</td></tr>
+<tr><td>요구사항명</td><td>결재 문서 기안(임시저장) 생성</td></tr>
+<tr><td>대 / 중 / 소분류</td><td>PORTAL / Approval / Draft</td></tr>
+<tr><td>우선순위</td><td>High</td></tr>
+<tr><td>진행현황</td><td>테스트중</td></tr>
+<tr><td>수용 여부</td><td>수용</td></tr>
+<tr><td>비고(엑셀)</td><td>소스 역추출. ApprovalControllerTest · ApprovalServiceTest 가 현재 동작을 고정.</td></tr>
+<tr><td>요약</td><td>POST /api/approvals 로 결재 문서를 임시저장(0) 상태로 만든다. 긴급이면 우선순위 3, 금액 · 긴급 생략 시 0 · false, 생성 감사로그 1줄, 메일 없음. F열 11개 문장 모두 소스와 일치한다.</td></tr>
+</tbody></table>
+<h2>2. 근거</h2>
+<p><b>SRS 없음 (엑셀 F열 · 소스만으로 분석)</b> - <code>D:\legacy-portal\docs\SRS</code> 가 존재하지 않는다. 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<div class="raw">[개요]
+사원이 지출 · 휴가 · 구매 · 기타 유형의 결재 문서를 작성하여 임시저장 상태로 생성한다. 결재 흐름의 진입점이다.
+
+[상세 기능 요구사항]
+1) POST /api/approvals 로 제목 · 내용 · 유형(type) · 우선순위(priority) · 기안자 ID · 결재자 ID · 금액 · 긴급 여부를 받아 결재 문서를 생성한다.
+2) 생성 직후 상태는 임시저장(0)이며 생성 시각 · 수정 시각을 같은 현재 시각으로 기록한다.
+3) 긴급(urgent=true) 이면 입력 우선순위와 관계없이 우선순위를 높음(3)으로 저장한다.
+4) 금액 생략 시 0, 긴급 여부 생략 시 false 를 기본값으로 쓴다.
+5) 생성 성공 시 감사로그 &#x27;APPROVAL CREATE&#x27; 를 유형(type=) 정보와 함께 남긴다.
+6) 응답은 결재 문서 12개 필드(id · title · content · type · status · priority · drafterId · approverId · rejectReason · amount · createdAt · updatedAt)를 정수 코드 그대로 반환한다.
+
+[입력 / 출력]
+- 입력: 제목, 내용, 유형(1=지출 2=휴가 3=구매 4=기타), 우선순위(1=낮음 2=보통 3=높음), 기안자 ID, 결재자 ID, 금액, 긴급 여부
+- 출력: 생성된 결재 문서 JSON(12개 필드), 감사로그 1줄
+
+[제약 조건 / 비기능 요구사항]
+- 요청 · 응답 JSON 필드 이름 · 순서 · 정수 코드 값을 바꾸지 않는다.
+- 기안 생성 시에는 메일을 보내지 않는다.
+- 현재 동작 보존: drafterId · approverId 생략 시 500 응답(NPE)이 난다. 입력 검증 도입은 REQ-NF-003 에서 다룬다.
+
+[검증 기준]
+- urgent=true 로 생성하면 priority 가 3 으로 저장된다.
+- amount · urgent 를 생략해도 0 · false 로 생성된다.
+- 생성 응답의 status 가 0 이고 createdAt 과 updatedAt 이 같다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\approval (ApprovalController · ApprovalService · Approval · dto)
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</div>
+<p>설계 제약: <code>D:\legacy-portal\CLAUDE.md</code> 의 불변 규칙 - API 엔드포인트 · HTTP 메서드, 요청/응답 JSON 구조, DB 저장 정수값, public 메서드 시그니처, 관찰 가능한 동작(조용한 무시 포함)을 바꾸지 않는다. 결함은 보존 대상과 개선 대상을 나눠 적는다.</p>
+<h2>3. 분석 결과</h2><h3>3.1 추적표 (F열 문장 ↔ 소스)</h3>
+<table><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead><tbody>
+<tr><td>상세 1</td><td>POST /api/approvals 로 제목 · 내용 · type · priority · 기안자 ID · 결재자 ID · 금액 · 긴급 여부를 받아 결재 문서를 생성한다.</td><td>SRS 없음</td><td>ApprovalController.java:35-40<br>dto/CreateApprovalRequest.java:18-26<br>ApprovalService.java:80-85</td><td><span class="v-ok">충족</span></td><td>요청 DTO 8개 필드 → DraftApprovalCommand → Approval.draft → save</td></tr>
+<tr><td>상세 2</td><td>생성 직후 상태는 임시저장(0)이며 생성 시각 · 수정 시각을 같은 현재 시각으로 기록한다.</td><td>SRS 없음</td><td>Approval.java:107, 111-112<br>ApprovalService.java:81</td><td><span class="v-ok">충족</span></td><td><code>LocalDateTime.now(clock)</code> 를 한 번만 구해 두 필드에 넣는다</td></tr>
+<tr><td>상세 3</td><td>긴급(urgent=true) 이면 입력 우선순위와 관계없이 우선순위를 높음(3)으로 저장한다.</td><td>SRS 없음</td><td>Approval.java:37, 106</td><td><span class="v-ok">충족</span></td><td><code>command.urgent() ? HIGH_PRIORITY : command.priority()</code></td></tr>
+<tr><td>상세 4</td><td>금액 생략 시 0, 긴급 여부 생략 시 false 를 기본값으로 쓴다.</td><td>SRS 없음</td><td>dto/CreateApprovalRequest.java:29-32</td><td><span class="v-ok">충족</span></td><td>compact 생성자. 명시적 null(&quot;amount&quot;: null)도 0/false 로 처리 - 레거시(500)와 다른 알려진 차이(같은 파일 14-16줄, 비정상 요청만)</td></tr>
+<tr><td>상세 5</td><td>생성 성공 시 감사로그 &#x27;APPROVAL CREATE&#x27; 를 유형(type=) 정보와 함께 남긴다.</td><td>SRS 없음</td><td>ApprovalService.java:83<br>ApprovalAuditRecorder.java:25-28<br>common/ConsoleAuditLogger.java:50-57</td><td><span class="v-ok">충족</span></td><td>형식 <code>[AUDIT] [yyyy-MM-dd HH:mm:ss] APPROVAL CREATE id={id} by={drafterId} type={type}</code></td></tr>
+<tr><td>상세 6</td><td>응답은 결재 문서 12개 필드(id … updatedAt)를 정수 코드 그대로 반환한다.</td><td>SRS 없음</td><td>dto/ApprovalResponse.java:16-44</td><td><span class="v-ok">충족</span></td><td>status 는 <code>approval.getStatus()</code> 의 int code (36줄)</td></tr>
+<tr><td>입력</td><td>제목, 내용, 유형(1=지출 2=휴가 3=구매 4=기타), 우선순위(1=낮음 2=보통 3=높음), 기안자 ID, 결재자 ID, 금액, 긴급 여부</td><td>SRS 없음</td><td>dto/CreateApprovalRequest.java:18-26<br>Approval.java:48, 54</td><td><span class="v-ok">충족</span></td><td>type · priority 는 정수로 받아 그대로 저장. 범위(1~4 · 1~3) 검증은 없음 → REQ-NF-003</td></tr>
+<tr><td>출력</td><td>생성된 결재 문서 JSON(12개 필드), 감사로그 1줄</td><td>SRS 없음</td><td>ApprovalController.java:39<br>ApprovalService.java:83</td><td><span class="v-ok">충족</span></td><td>감사로그는 생성 1회당 정확히 1줄</td></tr>
+<tr><td>제약 1</td><td>요청 · 응답 JSON 필드 이름 · 순서 · 정수 코드 값을 바꾸지 않는다.</td><td>SRS 없음</td><td>dto/CreateApprovalRequest.java:18-26<br>dto/ApprovalResponse.java:16-28</td><td><span class="v-ok">충족</span></td><td>record 컴포넌트 순서 = JSON 순서</td></tr>
+<tr><td>제약 2</td><td>기안 생성 시에는 메일을 보내지 않는다.</td><td>SRS 없음</td><td>ApprovalService.java:80-85</td><td><span class="v-ok">충족</span></td><td>create 경로에 ApprovalNotifier 호출이 없다</td></tr>
+<tr><td>제약 3</td><td>현재 동작 보존: drafterId · approverId 생략 시 500 응답(NPE)이 난다.</td><td>SRS 없음</td><td>dto/CreateApprovalRequest.java:48-49</td><td><span class="v-ok">충족</span></td><td><code>drafterId.longValue()</code> · <code>approverId.longValue()</code> 에서 NPE. @ControllerAdvice 가 없어 스프링 기본 500. 이를 고정하는 테스트는 없음(9.2 제안)</td></tr>
+</tbody></table>
+<h3>3.2 판정 요약</h3>
+<table><thead><tr><th>충족</th><th>부분 충족</th><th>미충족</th><th>불일치</th><th>확인 불가</th></tr></thead><tbody>
+<tr><td>11</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+</tbody></table>
+<p>type · priority 생략도 int 언박싱(CreateApprovalRequest.java:46-47 → DraftApprovalCommand int)에서 NPE(500)가 난다 - F열에는 없지만 같은 계열의 현재 동작이다.</p>
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table><thead><tr><th>검증 기준(F열)</th><th>고정하는 테스트 (테스트클래스#메서드)</th></tr></thead><tbody>
+<tr><td>urgent=true 로 생성하면 priority 가 3 으로 저장된다.</td><td>ApprovalControllerTest#긴급으로_생성하면_응답의_우선순위가_3이다<br>ApprovalServiceSafetyNetTest#긴급으로_생성하면_요청한_우선순위와_상관없이_3이다</td></tr>
+<tr><td>amount · urgent 를 생략해도 0 · false 로 생성된다.</td><td>ApprovalControllerTest#금액과_긴급을_생략하면_금액_0_우선순위는_요청값으로_생성된다 (urgent=false 는 priority 가 요청값 1 로 남는 것으로 간접 확인)<br>RequirementAcceptanceTest#기안_생성_응답의_상태는_0이고_생성시각과_수정시각이_같다 (amount 0)</td></tr>
+<tr><td>생성 응답의 status 가 0 이고 createdAt 과 updatedAt 이 같다.</td><td>RequirementAcceptanceTest#기안_생성_응답의_상태는_0이고_생성시각과_수정시각이_같다<br>ClockInjectionTest#고정_Clock이면_기안의_생성시각과_수정시각이_고정_시각이다</td></tr>
+</tbody></table>
+<h2>4. 구성 요소 설계</h2><p>public 시그니처는 현행 그대로 유지한다(신규 public 메서드 추가 없음).</p>
+<table><thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처</th></tr></thead><tbody>
+<tr><td>ApprovalController</td><td>HTTP 요청 → 명령 변환 → 응답 DTO</td><td><code>public ApprovalResponse create(@RequestBody CreateApprovalRequest request)</code></td></tr>
+<tr><td>CreateApprovalRequest (record)</td><td>요청 JSON 모양 · 기본값(amount 0, urgent false) · 도메인 명령 변환</td><td><code>public DraftApprovalCommand toCommand()</code></td></tr>
+<tr><td>DraftApprovalCommand (record)</td><td>기안 입력 묶음 (도메인 계층용, dto 를 모름)</td><td><code>(String title, String content, int type, int priority, Long drafterId, Long approverId, long amount, boolean urgent)</code></td></tr>
+<tr><td>ApprovalService</td><td>생성 흐름: 엔티티 생성 → 저장 → 감사로그</td><td><code>public Approval create(DraftApprovalCommand command)</code><br><code>public Approval create(String title, String content, int type, int priority, Long drafterId, Long approverId, long amount, boolean urgent)</code> (레거시 계약, 위임만)</td></tr>
+<tr><td>Approval (Entity)</td><td>생성 규칙: 상태 DRAFT · 긴급이면 우선순위 3 · 시각 동일</td><td><code>public static Approval draft(DraftApprovalCommand command, LocalDateTime now)</code></td></tr>
+<tr><td>ApprovalAuditRecorder</td><td>결재 감사로그 이름 · 덧붙임 정보</td><td><code>public void recordCreated(Approval approval, Long actorId)</code></td></tr>
+<tr><td>ApprovalResponse (record)</td><td>응답 12개 필드 · 정수 code</td><td><code>public static ApprovalResponse from(Approval approval)</code></td></tr>
+</tbody></table>
+<h2>5. 인터페이스 설계</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>엔드포인트</td><td><code>POST /api/approvals</code> (ApprovalController.java:35)</td></tr>
+<tr><td>요청 본문</td><td>title(string) · content(string) · type(int 1~4) · priority(int 1~3) · drafterId(Long) · approverId(Long) · amount(Long, 생략 시 0) · urgent(Boolean, 생략 시 false)</td></tr>
+<tr><td>요청 예시</td><td>{&quot;title&quot;:&quot;노트북 구매&quot;,&quot;content&quot;:&quot;개발용 노트북&quot;,&quot;type&quot;:1,&quot;priority&quot;:2,&quot;drafterId&quot;:1,&quot;approverId&quot;:2,&quot;amount&quot;:1200000,&quot;urgent&quot;:false}</td></tr>
+<tr><td>응답</td><td>HTTP 200 + 결재 문서 JSON 12개 필드 (아래 표)</td></tr>
+<tr><td>응답 예시</td><td>{&quot;id&quot;:1,&quot;title&quot;:&quot;노트북 구매&quot;,&quot;content&quot;:&quot;개발용 노트북&quot;,&quot;type&quot;:1,&quot;status&quot;:0,&quot;priority&quot;:2,&quot;drafterId&quot;:1,&quot;approverId&quot;:2,&quot;rejectReason&quot;:null,&quot;amount&quot;:1200000,&quot;createdAt&quot;:&quot;2026-10-17T10:00:00&quot;,&quot;updatedAt&quot;:&quot;2026-10-17T10:00:00&quot;}</td></tr>
+<tr><td>오류 동작</td><td>type · priority · drafterId · approverId 생략 → NPE → 500 (현재 동작 보존). title · content 는 null 허용</td></tr>
+</tbody></table><table><thead><tr><th>순서</th><th>필드</th><th>타입</th><th>의미 / 코드</th></tr></thead><tbody>
+<tr><td>1</td><td>id</td><td>number(Long)</td><td>결재 문서 ID</td></tr>
+<tr><td>2</td><td>title</td><td>string</td><td>제목</td></tr>
+<tr><td>3</td><td>content</td><td>string</td><td>내용</td></tr>
+<tr><td>4</td><td>type</td><td>number(int)</td><td>1=지출 2=휴가 3=구매 4=기타</td></tr>
+<tr><td>5</td><td>status</td><td>number(int)</td><td>0=임시저장 1=상신 2=승인 3=반려 9=취소 (enum 이 아니라 정수 code)</td></tr>
+<tr><td>6</td><td>priority</td><td>number(int)</td><td>1=낮음 2=보통 3=높음</td></tr>
+<tr><td>7</td><td>drafterId</td><td>number(Long)</td><td>기안자 ID</td></tr>
+<tr><td>8</td><td>approverId</td><td>number(Long)</td><td>결재자 ID</td></tr>
+<tr><td>9</td><td>rejectReason</td><td>string | null</td><td>반려 사유</td></tr>
+<tr><td>10</td><td>amount</td><td>number(long)</td><td>금액</td></tr>
+<tr><td>11</td><td>createdAt</td><td>string(LocalDateTime ISO)</td><td>생성 시각</td></tr>
+<tr><td>12</td><td>updatedAt</td><td>string(LocalDateTime ISO)</td><td>수정 시각</td></tr>
+</tbody></table>
+<h2>6. 데이터 설계</h2>
+<table><thead><tr><th>필드(Approval)</th><th>컬럼(기본 명명 전략)</th><th>Java 타입</th><th>DB 저장값 / 비고</th></tr></thead><tbody>
+<tr><td>id</td><td>id</td><td>Long</td><td>IDENTITY 자동 증가 (Approval.java:42-44)</td></tr>
+<tr><td>title / content</td><td>title / content</td><td>String</td><td>검증 없음</td></tr>
+<tr><td>type</td><td>type</td><td>int</td><td>1~4 정수 그대로 (enum 미도입 - 백로그 R07)</td></tr>
+<tr><td>status</td><td>status</td><td>ApprovalStatus</td><td><code>@Convert(ApprovalStatusConverter)</code> + NOT NULL → 정수 0/1/2/3/9 (Approval.java:51-53). @Enumerated 금지</td></tr>
+<tr><td>priority</td><td>priority</td><td>int</td><td>1~3 정수 그대로</td></tr>
+<tr><td>drafterId / approverId</td><td>drafter_id / approver_id</td><td>Long</td><td>사용자 ID (FK 제약 없음)</td></tr>
+<tr><td>rejectReason</td><td>reject_reason</td><td>String</td><td>반려 시에만 기록, 그 외 null</td></tr>
+<tr><td>amount</td><td>amount</td><td>long</td><td>금액 (기본 0)</td></tr>
+<tr><td>createdAt / updatedAt</td><td>created_at / updated_at</td><td>LocalDateTime</td><td>주입된 Clock 기준 지금 (ApprovalService.java:56)</td></tr>
+</tbody></table><table><thead><tr><th>상황</th><th>status</th><th>priority</th><th>시각</th></tr></thead><tbody>
+<tr><td>생성(urgent=false)</td><td>0 임시저장</td><td>요청값 그대로</td><td>createdAt = updatedAt = now(clock)</td></tr>
+<tr><td>생성(urgent=true)</td><td>0 임시저장</td><td>3 높음</td><td>createdAt = updatedAt = now(clock)</td></tr>
+</tbody></table>
+<h2>7. 처리 흐름</h2>
+<table><thead><tr><th>순서</th><th>단계</th><th>처리 내용</th><th>소스 위치</th></tr></thead><tbody>
+<tr><td>1</td><td>요청 수신</td><td>JSON → CreateApprovalRequest (amount · urgent 기본값 채움)</td><td>dto/CreateApprovalRequest.java:29-32</td></tr>
+<tr><td>2</td><td>명령 변환</td><td><code>toCommand()</code> - 필수값 생략 시 여기서 NPE(500)</td><td>dto/CreateApprovalRequest.java:42-52</td></tr>
+<tr><td>3</td><td>엔티티 생성</td><td>Approval.draft: 상태 0, 긴급이면 우선순위 3, 생성 · 수정 시각 = now</td><td>Approval.java:101-114 / ApprovalService.java:81</td></tr>
+<tr><td>4</td><td>저장</td><td>approvalRepository.save</td><td>ApprovalService.java:82</td></tr>
+<tr><td>5</td><td>감사로그</td><td>APPROVAL CREATE ... type={type}</td><td>ApprovalService.java:83</td></tr>
+<tr><td>6</td><td>응답</td><td>ApprovalResponse.from → 12개 필드</td><td>ApprovalController.java:39</td></tr>
+</tbody></table>
+<p>메일 단계는 없다(제약 2). 가드(상태 검사)도 없다 - 생성은 항상 성공하거나 입력 NPE 로 실패한다.</p>
+<h2>8. 예외 · 경계 처리</h2>
+<table><thead><tr><th>경우</th><th>현재 동작</th><th>소스 위치</th><th>레거시 보존 여부</th></tr></thead><tbody>
+<tr><td>drafterId · approverId 생략</td><td>NPE → 500</td><td>dto/CreateApprovalRequest.java:48-49</td><td>보존 (REQ-NF-003 에서 400 으로)</td></tr>
+<tr><td>type · priority 생략</td><td>int 언박싱 NPE → 500</td><td>dto/CreateApprovalRequest.java:46-47</td><td>보존</td></tr>
+<tr><td>amount · urgent 생략</td><td>0 · false</td><td>dto/CreateApprovalRequest.java:29-32</td><td>보존</td></tr>
+<tr><td>&quot;amount&quot;: null 명시</td><td>0 으로 처리 (레거시는 500)</td><td>dto/CreateApprovalRequest.java:14-16</td><td>알려진 차이(비정상 요청만) - DTO 도입 시 발생, 문서화됨</td></tr>
+<tr><td>type 5 · priority 0 등 범위 밖 값</td><td>그대로 저장</td><td>Approval.java:105-106</td><td>보존 (검증은 REQ-NF-003)</td></tr>
+<tr><td>음수 금액</td><td>그대로 저장</td><td>Approval.java:110</td><td>보존</td></tr>
+</tbody></table>
+<h2>9. 검증 설계</h2><h3>9.1 검증 기준 ↔ 테스트 매핑</h3>
+<table><thead><tr><th>검증 기준 / 동작</th><th>테스트</th><th>상태</th></tr></thead><tbody>
+<tr><td>urgent=true → priority 3</td><td>ApprovalControllerTest#긴급으로_생성하면_응답의_우선순위가_3이다 · ApprovalServiceSafetyNetTest#긴급으로_생성하면_요청한_우선순위와_상관없이_3이다</td><td>있음</td></tr>
+<tr><td>amount · urgent 생략 → 0 · false</td><td>ApprovalControllerTest#금액과_긴급을_생략하면_금액_0_우선순위는_요청값으로_생성된다</td><td>있음</td></tr>
+<tr><td>status 0 · createdAt = updatedAt</td><td>RequirementAcceptanceTest#기안_생성_응답의_상태는_0이고_생성시각과_수정시각이_같다 · ClockInjectionTest#고정_Clock이면_기안의_생성시각과_수정시각이_고정_시각이다</td><td>있음</td></tr>
+<tr><td>응답 12개 필드 · 정수 code</td><td>ApprovalControllerTest#결재_생성_응답은_필드_12개의_레거시_JSON이다</td><td>있음</td></tr>
+<tr><td>감사로그 APPROVAL CREATE type=</td><td>ApprovalNotificationOutputTest#결재를_생성하면_유형이_붙은_감사로그가_남는다</td><td>있음</td></tr>
+<tr><td>메일 없음 · 감사로그 1줄</td><td>ApprovalServiceMailUnitTest#생성만_하면_메일은_보내지_않고_감사로그만_한번_쓴다</td><td>있음</td></tr>
+<tr><td>DB 에 정수 0</td><td>ApprovalStatusPersistenceTest#임시저장_결재는_DB에_정수_0으로_저장된다</td><td>있음</td></tr>
+<tr><td>drafterId · approverId 생략 → 500</td><td>테스트 없음</td><td>제안</td></tr>
+</tbody></table>
+<h3>9.2 빠진 테스트 제안</h3><p>특성화 테스트 본문은 수정하지 않고 새 테스트로 추가한다. 메서드명은 한글 시나리오, 필드 · 변수는 영어(camelCase).</p>
+<table><thead><tr><th>제안 테스트 메서드</th><th>배치 클래스</th><th>고정할 내용 (변수명 예)</th></tr></thead><tbody>
+<tr><td>기안자_ID를_빼고_기안하면_500이_난다()</td><td>ApprovalControllerTest 옆 새 클래스 (MockMvc)</td><td><code>requestWithoutDrafterId</code> JSON → <code>status().isInternalServerError()</code> - REQ-NF-003 전환 전 기준점</td></tr>
+<tr><td>결재자_ID를_빼고_기안하면_500이_난다()</td><td>같은 클래스</td><td><code>requestWithoutApproverId</code> → 500</td></tr>
+<tr><td>긴급을_false로_명시하면_요청한_우선순위가_유지된다()</td><td>같은 클래스</td><td><code>nonUrgentRequest</code> priority 1 → 응답 priority 1</td></tr>
+</tbody></table>
+<h2>10. 검토 의견 · 후속 과제</h2><h3>10.1 보존 대상 (리팩토링 단계에서 바꾸지 않음)</h3>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr class="keep"><td>DB 저장값</td><td>status 0/1/2/3/9 정수 (ApprovalStatusConverter.java:16-24)</td></tr><tr class="keep"><td>필수 필드 생략 시 500</td><td>drafterId · approverId · type · priority 생략 → NPE(500)</td></tr><tr class="keep"><td>응답 형식</td><td>12개 필드 이름 · 순서 · 정수 code</td></tr><tr class="keep"><td>public 시그니처</td><td><code>ApprovalService.create(8개 인자)</code> 유지 - 내부는 명령 객체로 위임</td></tr></tbody></table>
+<h3>10.2 개선 대상 (재설계 단계 · 별도 요구사항)</h3>
+<table><thead><tr><th>항목</th><th>설계안</th><th>연계</th></tr></thead><tbody><tr class="improve"><td>입력 검증 부재 (500)</td><td>요청 DTO 에 Bean Validation, 실패 시 400 + 필드별 사유. 명시적 null 과 키 생략을 같은 규칙으로</td><td>REQ-NF-003 · REQ-NF-002</td></tr><tr class="improve"><td>type · priority 정수(매직넘버)</td><td>ApprovalType · ApprovalPriority enum + AttributeConverter (DB 정수 그대로)</td><td>백로그 R07</td></tr><tr class="improve"><td>drafterId 를 요청 본문에서 신뢰</td><td>로그인 사용자로 기안자 결정</td><td>REQ-SE-002</td></tr></tbody></table>
+<h3>10.3 연계 요구사항</h3>
+<table><thead><tr><th>요구사항</th><th>경계</th></tr></thead><tbody>
+<tr><td>REQ-NF-003 요청 입력 검증</td><td>필수 필드 누락 500 → 400 전환은 그쪽 범위. 이 요구사항은 현재 500 을 보존</td></tr>
+<tr><td>REQ-SE-002 요청자 신원 확인</td><td>drafterId 를 로그인 사용자로 정하는 변경</td></tr>
+<tr><td>REQ-F-002 상신</td><td>생성된 임시저장(0) 문서가 상신의 입력</td></tr>
+</tbody></table>
+</main></body></html>

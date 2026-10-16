@@ -1,7 +1,9 @@
 package kr.hull.portal.common;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
@@ -19,11 +21,25 @@ import java.time.format.DateTimeFormatter;
  *   - 여기서: 시각 포맷 상수 1개 + format() 1개. 감사로그 형식이 바뀌면 이 파일만 고친다
  * [보존] 출력 "[AUDIT] [yyyy-MM-dd HH:mm:ss] {동작} id={id} by={userId}" (+ " {detail}") 1글자도 그대로.
  *   id · userId 가 null 이면 레거시 문자열 연결처럼 "null" 로 찍힌다.
+ * [리팩토링 R13 · REQ-NF-004] 기록 시각 LocalDateTime.now() → LocalDateTime.now(clock) (주입받은 Clock)
+ *   - 기본 생성자는 시스템 기본 Clock (Clock 빈이 없는 슬라이스 테스트 · 직접 new). Clock 빈이 있으면 스프링이 Clock 생성자를 고른다.
  */
 @Component
 public class ConsoleAuditLogger implements AuditLogger {
 
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    private final Clock clock;
+
+    public ConsoleAuditLogger() {
+        this(Clock.systemDefaultZone());
+    }
+
+    // Clock 빈이 없으면 스프링은 이 생성자를 건너뛰고 기본 생성자를 쓴다 (required = false)
+    @Autowired(required = false)
+    public ConsoleAuditLogger(Clock clock) {
+        this.clock = clock;
+    }
 
     @Override
     public void write(String action, Long id, Long userId) {
@@ -36,7 +52,7 @@ public class ConsoleAuditLogger implements AuditLogger {
     }
 
     private String format(String action, Long id, Long userId) {
-        String now = LocalDateTime.now().format(TIMESTAMP_FORMAT);
+        String now = LocalDateTime.now(clock).format(TIMESTAMP_FORMAT);
         return "[" + now + "] " + action + " id=" + id + " by=" + userId;
     }
 

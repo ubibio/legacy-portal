@@ -1,0 +1,126 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="sds.css">
+<title>SDS - REQ-DA-003</title>
+<main class="sds" data-id="REQ-DA-003">
+<div class="cover"><h1>SDS - REQ-DA-003 나머지 코드값 enum 전환과 범위 검증</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<h2>1. 개요</h2>
+<table><colgroup><col style="width:20%"><col style="width:80%"></colgroup><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td>요구사항 ID</td><td>REQ-DA-003</td></tr><tr><td>요구사항명</td><td>나머지 코드값 enum 전환과 범위 검증</td></tr><tr><td>대 / 중 / 소분류</td><td>PORTAL / Data / Enum</td></tr><tr><td>우선순위</td><td>Medium</td></tr><tr><td>진행현황</td><td>설계중</td></tr><tr><td>수용여부 · 요청자</td><td>수용 · 포털팀 (미정)</td></tr><tr><td>엑셀 비고</td><td>리팩토링 백로그 R07(보류). REPORT.md 9장 남은 과제.</td></tr><tr><td>요약</td><td>결재 유형 · 우선순위, 공지 상태 · 분류, 일정 상태, 사용자 직급의 int 코드를 결재 상태(ApprovalStatus)와 같은 방식의 enum 으로 바꾸고 범위 밖 값을 거절한다. 현재는 미착수(리팩토링 백로그 R07 보류)로 모든 필드가 int 이며 type 5 같은 값도 그대로 저장된다. 설계상 핵심 제약은 특성화 테스트가 Notice.setStatus(2) 로 &#x27;알수없음&#x27; 라벨을 확인한다는 점으로, 공지 상태는 enum 필드 + AttributeConverter 로 바꾸면 이 테스트가 깨진다. 따라서 공지 상태만 int 저장 + enum 해석으로 설계한다.</td></tr></tbody></table>
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). docs\SRS 폴더가 존재하지 않아 아래 F열 상세내용 원문과 D:\legacy-portal 소스(src\main · src\test) · CLAUDE.md 불변 규칙만을 근거로 삼는다.</p>
+<div class="raw">[개요]
+결재 유형 · 우선순위, 공지 상태 · 분류, 일정 상태, 사용자 직급의 숫자 코드를 enum 으로 바꾸고, 범위 밖 값을 받지 않게 한다.
+
+[상세 기능 요구사항]
+1) 각 코드에 대해 결재 상태와 같은 방식(code · label · fromCode · AttributeConverter)의 enum 을 만든다.
+2) 엔티티 필드를 enum 으로 바꾸되 DB 저장값은 REQ-DA-001 의 정수 그대로 둔다.
+3) API 로 범위 밖 코드(예: type 5, priority 7)가 들어오면 거절한다.
+4) 공지 상태 표시명(임시 · 게시 · 내림)을 enum label 로 옮긴다.
+
+[입력 / 출력]
+- 입력: 현재 정수 코드 필드
+- 출력: enum 필드, Converter, 범위 밖 값 거절
+
+[제약 조건 / 비기능 요구사항]
+- DB 저장값 · JSON 정수 코드 형식을 바꾸지 않는다.
+- 범위 밖 값 거절은 동작 변경이므로 REQ-NF-003 입력 검증과 함께 적용한다.
+
+[검증 기준]
+- 전환 후에도 JDBC 로 읽은 컬럼 값이 전환 전과 같다.
+- type=5 로 기안하면 거절되고 저장되지 않는다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\approval\Approval.java
+src\main\java\kr\hull\portal\notice\Notice.java
+src\main\java\kr\hull\portal\schedule\Schedule.java
+src\main\java\kr\hull\portal\user\User.java
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : database-expert</div>
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표 (F열 문장 ↔ 소스)</h3>
+<table><colgroup><col style="width:8%"><col style="width:26%"><col style="width:7%"><col style="width:29%"><col style="width:9%"><col style="width:21%"></colgroup><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead><tbody><tr><td>기능 1</td><td>각 코드에 대해 결재 상태와 같은 방식(code · label · fromCode · AttributeConverter)의 enum 을 만든다.</td><td>SRS 없음</td><td>패턴만 존재: ApprovalStatus.java:13-52 · ApprovalStatusConverter.java:13-25. ApprovalType · ApprovalPriority · NoticeStatus · NoticeCategory · ScheduleStatus · UserRole 클래스 없음(src\main 파일 목록)</td><td><span class="v-no">미충족</span></td><td>Approval.java:23 · Notice.java:17 · Schedule.java:17 · User.java:12 주석에 &#x27;R07 단계로 남김&#x27; 명시</td></tr><tr><td>기능 2</td><td>엔티티 필드를 enum 으로 바꾸되 DB 저장값은 REQ-DA-001 의 정수 그대로 둔다.</td><td>SRS 없음</td><td>Approval.java:48 int type · :54 int priority, Notice.java:34-35 int status · category, Schedule.java:32 int status, User.java:27 int role</td><td><span class="v-no">미충족</span></td><td>전부 int. 저장값 자체는 REQ-DA-001 대로 정수</td></tr><tr><td>기능 3</td><td>API 로 범위 밖 코드(예: type 5, priority 7)가 들어오면 거절한다.</td><td>SRS 없음</td><td>CreateApprovalRequest.java:18-32 검증 없음(Integer type · priority 를 그대로 toCommand), Approval.java:105-106 command.type() · priority() 그대로 대입</td><td><span class="v-no">미충족</span></td><td>type 5 · priority 7 이 저장되고 200 응답(R11 이전 컨트롤러 주석 &#x27;잘못된 값(5 등)도 그냥 통과&#x27; - git 17760e4^)</td></tr><tr><td>기능 4</td><td>공지 상태 표시명(임시 · 게시 · 내림)을 enum label 로 옮긴다.</td><td>SRS 없음</td><td>Notice.java:105-110 statusLabel() 의 if 사다리(0 임시 · 1 게시 · 9 내림 · 그 밖 알수없음), NoticeService.java:106-108 위임</td><td><span class="v-no">미충족</span></td><td>엔티티 메서드까지는 옮겨졌으나 enum 은 아님</td></tr><tr><td>입력</td><td>입력: 현재 정수 코드 필드</td><td>SRS 없음</td><td>Approval.java:48 · 54, Notice.java:34-35, Schedule.java:32, User.java:27</td><td><span class="v-ok">충족</span></td><td>전환 대상 6개 필드 현황 확인됨</td></tr><tr><td>출력</td><td>출력: enum 필드, Converter, 범위 밖 값 거절</td><td>SRS 없음</td><td>해당 클래스 · 검증 없음</td><td><span class="v-no">미충족</span></td><td></td></tr><tr><td>제약 1</td><td>DB 저장값 · JSON 정수 코드 형식을 바꾸지 않는다.</td><td>SRS 없음</td><td>전환 전이라 현행 유지: ApprovalResponse.java:20-22 int type · status · priority, User 엔티티 직접 직렬화 int role</td><td><span class="v-ok">충족</span></td><td>전환 미착수 상태의 충족. 전환 후에도 유지돼야 함(9절 안전망)</td></tr><tr><td>제약 2</td><td>범위 밖 값 거절은 동작 변경이므로 REQ-NF-003 입력 검증과 함께 적용한다.</td><td>SRS 없음</td><td>REQ-NF-003 진행현황 &#x27;기획중&#x27;, 소스에 입력 검증(jakarta.validation · @Valid) 없음</td><td><span class="v-unk">확인 불가</span></td><td>적용 순서 · 묶음은 아직 실행되지 않은 계획 - 소스로 판정 불가</td></tr></tbody></table>
+<h3>3.2 판정 요약</h3>
+<p>충족 2 / 부분 충족 0 / 미충족 5 / 불일치 0 / 확인 불가 1 (총 8건)</p>
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table><colgroup><col style="width:30%"><col style="width:45%"><col style="width:25%"></colgroup><thead><tr><th>검증 기준(F열)</th><th>고정하는 테스트</th><th>비고</th></tr></thead><tbody><tr><td>전환 후에도 JDBC 로 읽은 컬럼 값이 전환 전과 같다.</td><td>결재 status 만 있음: ApprovalStatusPersistenceTest#임시저장_결재는_DB에_정수_0으로_저장된다 · #승인된_결재는_DB에_정수_2로_저장된다 · #취소된_결재는_DB에_순번_4가_아니라_정수_9로_저장된다. type · priority · 공지 · 일정 · role 컬럼은 테스트 없음</td><td>전환 전에 먼저 추가해야 하는 안전망(9절)</td></tr><tr><td>type=5 로 기안하면 거절되고 저장되지 않는다.</td><td>테스트 없음</td><td>현행은 저장됨. 동작 변경 테스트이므로 REQ-NF-003 과 같은 커밋에서 새 테스트로 추가</td></tr></tbody></table>
+<h2>4. 구성 요소 설계</h2>
+<table><thead><tr><th>enum (신규, 소속 도메인 이름)</th><th>code · label</th><th>Converter</th><th>적용 필드</th></tr></thead><tbody><tr><td>ApprovalType</td><td>EXPENSE 1 지출 · VACATION 2 휴가 · PURCHASE 3 구매 · ETC 4 기타</td><td>ApprovalTypeConverter</td><td>Approval.type</td></tr><tr><td>ApprovalPriority</td><td>LOW 1 낮음 · NORMAL 2 보통 · HIGH 3 높음</td><td>ApprovalPriorityConverter</td><td>Approval.priority</td></tr><tr><td>NoticeStatus</td><td>DRAFT 0 임시 · PUBLISHED 1 게시 · TAKEN_DOWN 9 내림</td><td>없음 (int 저장 유지 - 아래 설계 판단)</td><td>Notice.status (해석용)</td></tr><tr><td>NoticeCategory</td><td>GENERAL 1 일반 · EMERGENCY 2 긴급 · PERSONNEL 3 인사</td><td>NoticeCategoryConverter</td><td>Notice.category</td></tr><tr><td>ScheduleStatus</td><td>PLANNED 0 예정 · CONFIRMED 1 확정 · CANCELED 9 취소</td><td>ScheduleStatusConverter</td><td>Schedule.status</td></tr><tr><td>UserRole</td><td>STAFF 1 사원 · TEAM_LEADER 2 팀장 · EXECUTIVE 3 임원</td><td>UserRoleConverter</td><td>User.role</td></tr></tbody></table>
+<h3>공통 시그니처 (ApprovalStatus 와 같은 모양)</h3>
+<pre>public enum ApprovalType {
+    EXPENSE(1, &quot;지출&quot;), VACATION(2, &quot;휴가&quot;), PURCHASE(3, &quot;구매&quot;), ETC(4, &quot;기타&quot;);
+    public int getCode()
+    public String getLabel()
+    public static ApprovalType fromCode(int code)          // 정의 밖 code → IllegalArgumentException
+    public static boolean isDefined(int code)               // DTO 검증용 (REQ-NF-003)
+}
+
+@Converter
+public class ApprovalTypeConverter implements AttributeConverter&lt;ApprovalType, Integer&gt; {
+    public Integer convertToDatabaseColumn(ApprovalType type)    // null → null, 그 밖 → getCode()
+    public ApprovalType convertToEntityAttribute(Integer code)   // null → null, 그 밖 → fromCode
+}
+
+// 엔티티 - public 계약(int getter · setter) 현행 유지, enum 접근은 get/set 접두 없는 메서드로 (JSON 필드 증가 방지)
+public int  Approval.getType()              // type == null ? 0 : type.getCode()  (new Approval() 기본값 0 보존)
+public void Approval.setType(int type)      // ApprovalType.fromCode(type)
+public ApprovalType Approval.approvalType()
+public int  User.getRole()  /  public void User.setRole(int role)  /  public UserRole userRole()
+public boolean User.hasApprovalAuthority()  // userRole().getCode() &gt;= UserRole.TEAM_LEADER.getCode() - 판정 결과 동일
+
+// 공지 상태 - int 필드 유지 + enum 해석
+private int status;                                       // DB 0/1/9 그대로, setStatus(int) 는 어떤 값도 받음
+public static Optional&lt;NoticeStatus&gt; NoticeStatus.fromCode(int code)
+public String Notice.statusLabel()                         // NoticeStatus.fromCode(status).map(NoticeStatus::getLabel).orElse(&quot;알수없음&quot;)</pre>
+<h3>설계 판단 - 공지 상태를 Converter 대상에서 제외</h3>
+<p>특성화 테스트 NoticeServiceCharacterizationTest#상태_라벨은_0임시_1게시_9내림_그밖은_알수없음이다 (NoticeServiceCharacterizationTest.java:267-278)는 notice.setStatus(2) 후 statusLabel 이 &quot;알수없음&quot; 인지 확인한다. 공지 상태를 enum 필드로 바꾸면 2 를 담을 수 없어 setStatus(2) 가 예외를 내고, 테스트 본문은 수정 금지이므로 이 경로는 쓸 수 없다. 따라서 공지 상태는 ApprovalAction 처럼 Optional 을 돌려주는 fromCode 로 해석만 하고, 필드 · DB 는 int 그대로 둔다. 라벨은 enum 이 갖게 되어 기능 4 는 충족된다.</p>
+<p>나머지 필드는 테스트에서 정의된 값만 쓰는 것을 확인했다(src\test 의 new User(...) role 1 · 2 · 3, create(...) type 1 · 2 · 3 · 4 범위 · priority 1 · 2, Schedule setStatus 1 · 9, 공지 category 1 · 2 · 3 상수). 단 new Approval() 의 int 기본값 0(type · priority)은 정의 밖이므로 getter 가 null 을 0 으로 돌려주게 해 보존한다.</p>
+<h2>5. 인터페이스 설계</h2>
+<p>URL · 필드 이름 · JSON 정수 형식은 그대로다. 달라지는 것은 범위 밖 값의 처리뿐이며 이것은 REQ-NF-003 의 검증 응답 형식(REQ-NF-002 오류 형식)을 따른다.</p>
+<table><thead><tr><th>API</th><th>필드</th><th>허용 값</th><th>범위 밖일 때(전환 후)</th><th>현행</th></tr></thead><tbody><tr><td>POST /api/approvals</td><td>type</td><td>1 · 2 · 3 · 4</td><td>400 + 필드 사유 &#x27;type&#x27;, 저장 안 함</td><td>그대로 저장, 200</td></tr><tr><td>POST /api/approvals</td><td>priority</td><td>1 · 2 · 3</td><td>400 + &#x27;priority&#x27;</td><td>그대로 저장, 200</td></tr><tr><td>POST /api/notices (REQ-IF-003)</td><td>category</td><td>1 · 2 · 3</td><td>400 + &#x27;category&#x27;</td><td>API 없음</td></tr><tr><td>모든 응답</td><td>type · priority · status · category · role</td><td>정수</td><td>정수 그대로</td><td>정수</td></tr></tbody></table>
+<pre>POST /api/approvals
+{&quot;title&quot;:&quot;노트북&quot;,&quot;content&quot;:&quot;&quot;,&quot;type&quot;:5,&quot;priority&quot;:2,&quot;drafterId&quot;:1,&quot;approverId&quot;:2}
+→ (전환 후) 400  {&quot;code&quot;:&quot;INVALID_INPUT&quot;,&quot;message&quot;:&quot;...&quot;,&quot;fields&quot;:{&quot;type&quot;:&quot;정의되지 않은 결재 유형: 5&quot;}}   // 형식은 REQ-NF-002 확정안을 따름
+→ (현행)    200  {&quot;id&quot;:..,&quot;type&quot;:5,...}</pre>
+<h2>6. 데이터 설계</h2>
+<table><thead><tr><th>테이블.컬럼</th><th>현재 매핑</th><th>전환 후 매핑</th><th>DB 저장값(불변)</th></tr></thead><tbody><tr><td>approval.type</td><td>int</td><td>@Convert(ApprovalTypeConverter)</td><td>1 · 2 · 3 · 4</td></tr><tr><td>approval.priority</td><td>int</td><td>@Convert(ApprovalPriorityConverter)</td><td>1 · 2 · 3</td></tr><tr><td>notice.status</td><td>int</td><td>int (변경 없음, NoticeStatus 로 해석)</td><td>0 · 1 · 9</td></tr><tr><td>notice.category</td><td>int</td><td>@Convert(NoticeCategoryConverter)</td><td>1 · 2 · 3</td></tr><tr><td>schedule.status</td><td>int</td><td>@Convert(ScheduleStatusConverter)</td><td>0 · 1 · 9</td></tr><tr><td>users.role</td><td>int</td><td>@Convert(UserRoleConverter)</td><td>1 · 2 · 3</td></tr></tbody></table>
+<p>@Enumerated(STRING) · @Enumerated(ORDINAL) 은 쓰지 않는다(CLAUDE.md 불변 규칙). ORDINAL 이면 9 가 2 로, 우선순위 1 이 0 으로 어긋난다. int 기본형 컬럼은 NOT NULL 이었으므로 Converter 필드에도 @Column(nullable = false) 를 붙여 스키마를 같게 한다(Approval.java:52 와 같은 방식).</p>
+<h3>상태 전이(바뀌지 않음, 상수만 enum 으로)</h3>
+<table><thead><tr><th>대상</th><th>전이</th><th>근거(현행)</th></tr></thead><tbody><tr><td>공지</td><td>0 임시 → 1 게시 (팀장 이상) / 1 · 9 는 변화 없음</td><td>Notice.java:84-93</td></tr><tr><td>일정</td><td>0 예정 → 1 확정 (소유자) / 1 · 9 는 변화 없음, 9 는 겹침 판정 제외</td><td>Schedule.java:95-117</td></tr></tbody></table>
+<h2>7. 처리 흐름</h2>
+<table><thead><tr><th>단계</th><th>처리</th><th>비고</th></tr></thead><tbody><tr><td>0 안전망 추가</td><td>type · priority · notice.status · category · schedule.status · role 의 JDBC 직접 조회 테스트 작성 · green 확인</td><td>전환 전에</td></tr><tr><td>1 enum 추가</td><td>6개 enum (+ Converter 5개)</td><td>동작 무변경</td></tr><tr><td>2 필드 전환</td><td>엔티티 필드를 enum 으로, public int getter · setter 는 code 로 위임</td><td>한 필드 한 커밋, 매번 ./mvnw test green</td></tr><tr><td>3 내부 사용처 교체</td><td>EXPENSE_TYPE · HIGH_PRIORITY · TEAM_LEADER_ROLE · DRAFT_STATUS 등 상수 → enum 비교</td><td>Approval.java:36-37, Notice.java:23-26, Schedule.java:23-25, User.java:30</td></tr><tr><td>4 라벨 이동</td><td>Notice.statusLabel → NoticeStatus.getLabel (+ 알수없음 fallback)</td><td>기능 4</td></tr><tr><td>5 범위 밖 거절</td><td>CreateApprovalRequest 등 DTO 에서 isDefined 검사 → 400 (REQ-NF-003 과 같은 커밋)</td><td>동작 변경 - 별도 단계</td></tr></tbody></table>
+<p>1~4 는 리팩토링(동작 보존), 5 는 재설계(동작 변경)다. 두 단계를 한 커밋에 섞지 않는다.</p>
+<h2>8. 예외 · 경계 처리</h2>
+<table><thead><tr><th>경계 · 예외</th><th>현행 동작</th><th>전환 후</th><th>레거시 보존 여부</th></tr></thead><tbody><tr><td>Notice.setStatus(2) → statusLabel</td><td>&quot;알수없음&quot;</td><td>&quot;알수없음&quot; (int 유지 + Optional 해석)</td><td>보존 (특성화 테스트)</td></tr><tr><td>new Approval().getType() · getPriority()</td><td>0</td><td>0 (null → 0)</td><td>보존</td></tr><tr><td>서비스 create(type 5) 직접 호출</td><td>저장됨</td><td>IllegalArgumentException (setType · draft 에서 fromCode)</td><td>변경 - REQ-NF-003 단계에서만 적용, 그 전에는 int 경로 유지</td></tr><tr><td>API type 5 · priority 7</td><td>200 · 저장</td><td>400 · 저장 안 함</td><td>변경 (재설계)</td></tr><tr><td>DB 에 정의 밖 값이 이미 있음</td><td>그대로 읽힘</td><td>Converter 에서 예외 - 엔티티 로드 실패</td><td>데이터 이행 전 점검 쿼리 필요(10절)</td></tr><tr><td>role 판정 role ≥ 2</td><td>팀장 · 임원 true</td><td>같음</td><td>보존</td></tr></tbody></table>
+<h2>9. 검증 설계</h2>
+<table><thead><tr><th>검증 기준</th><th>현재 테스트</th><th>추가 제안 테스트</th></tr></thead><tbody><tr><td>전환 후 JDBC 컬럼 값 동일</td><td>결재 status 만(ApprovalStatusPersistenceTest)</td><td>CodeValuePersistenceTest#결재_유형과_우선순위는_DB에_정수_그대로_저장된다, #공지_상태와_분류는_DB에_정수_그대로_저장된다, #일정_상태는_DB에_정수_그대로_저장된다, #사용자_직급은_DB에_정수_그대로_저장된다 (REQ-DA-001 9절과 같은 테스트 - 전환 전에 작성)</td></tr><tr><td>type=5 기안 거절 · 미저장</td><td>테스트 없음</td><td>ApprovalInputValidationTest#유형_5로_기안하면_400이고_저장되지_않는다, #우선순위_7로_기안하면_400이다</td></tr><tr><td>(설계) enum code 표</td><td>테스트 없음</td><td>CodeEnumTest#결재_유형_enum의_code는_1부터_4다, #정의되지_않은_code는_예외가_난다</td></tr></tbody></table>
+<pre>@SpringBootTest
+@AutoConfigureMockMvc
+@Transactional
+class ApprovalInputValidationTest {
+    @Autowired
+    private MockMvc mockMvc;
+    @Autowired
+    private ApprovalRepository approvalRepository;
+
+    @Test
+    void 유형_5로_기안하면_400이고_저장되지_않는다() throws Exception {
+        long countBefore = approvalRepository.count();
+        String invalidTypeRequest = &quot;&quot;&quot;
+                {&quot;title&quot;:&quot;노트북&quot;,&quot;content&quot;:&quot;&quot;,&quot;type&quot;:5,&quot;priority&quot;:2,&quot;drafterId&quot;:1,&quot;approverId&quot;:2}&quot;&quot;&quot;;
+
+        mockMvc.perform(post(&quot;/api/approvals&quot;).contentType(MediaType.APPLICATION_JSON).content(invalidTypeRequest))
+                .andExpect(status().isBadRequest());
+        assertThat(approvalRepository.count()).isEqualTo(countBefore);
+    }
+}</pre>
+<p>기존 특성화 테스트(정수 리터럴 0/1/2/3/9 · 1~4 호출)는 enum 상수 비교로 바꾸지 않고 그대로 green 이어야 한다.</p>
+<h2>10. 검토 의견 · 후속 과제</h2>
+<h3>보존 대상</h3>
+<ul class="keep"><li>DB 저장 정수값 6종(REQ-DA-001) · 응답 JSON 정수 형식 · 필드 수</li><li>엔티티 public int getter · setter 시그니처(특성화 테스트가 setStatus · new User(.., int, ..) 로 준비)</li><li>공지 상태의 &#x27;그 밖 = 알수없음&#x27; 라벨 동작, new Approval() 기본값 0</li><li>권한 판정(role ≥ 2) · 공지 게시 권한과 결재 권한의 분리(User.java:13-16 우연 중복 주석)</li></ul>
+<h3>개선 대상</h3>
+<ul class="improve"><li>[미충족] enum 6종 · Converter 5종 미구현 - 4절 설계안</li><li>[미충족] 범위 밖 코드 거절 - 동작 변경이므로 REQ-NF-003 과 함께, 특성화 테스트 수정이 아닌 새 테스트로</li><li>[미충족] 공지 상태 라벨 enum 이동 - int 저장 유지 + NoticeStatus 해석(4절 설계 판단)</li><li>[확인 불가] REQ-NF-003 과 묶어 적용 - 계획 사항, 착수 시 커밋 단위로 확인</li><li>운영 DB 이행 전 점검: select type, count(*) from approval where type not in (1,2,3,4) group by type 등 정의 밖 값 존재 여부 확인</li></ul>
+<p>검토 의견: F열 기능 1 은 &#x27;모든 코드에 AttributeConverter&#x27; 를 요구하지만, 공지 상태는 특성화 테스트 불변 규칙과 충돌한다. F열을 &#x27;공지 상태는 int 저장 + enum 해석(라벨 · 비교)&#x27; 으로 보완하거나, 재설계 단계(REQ-NF-002)에서 해당 특성화 테스트를 새 기대값으로 교체하는 별도 커밋 이후에 Converter 를 적용하는 것 중 하나를 선택해야 한다.</p>
+<p>연계 요구사항: REQ-DA-001(저장값 보존 - 안전망), REQ-NF-003(입력 검증 · 함께 적용), REQ-NF-002(오류 응답 형식), REQ-IF-003(공지 API 의 category 입력).</p>
+</main>

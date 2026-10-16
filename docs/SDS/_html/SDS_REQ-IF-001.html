@@ -1,0 +1,160 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="sds.css">
+<title>SDS - REQ-IF-001</title>
+<div class="cover"><h1>SDS - REQ-IF-001 메일 발송 인터페이스</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<main class="sds" data-id="REQ-IF-001">
+
+<h2>1. 개요</h2>
+<table>
+<tr><th style="width:22%">요구사항 ID</th><td>REQ-IF-001</td></tr>
+<tr><th>요구사항명</th><td>메일 발송 인터페이스</td></tr>
+<tr><th>대 / 중 / 소분류</th><td>PORTAL / Common / Mail</td></tr>
+<tr><th>우선순위</th><td>Medium</td></tr>
+<tr><th>진행현황</th><td>테스트중 (비고: 소스 역추출.)</td></tr>
+<tr><th>요약</th><td>결재(상신·승인·반려)·긴급공지 알림 메일을 <code>MailSender</code> 인터페이스 뒤에서 발송한다. 제목·본문 양식은 <code>MailFormat</code> 한 곳에서 만들고, 현재 구현체 <code>ConsoleMailSender</code> 가 콘솔에 <code>=== MAIL ===</code> 블록으로 출력한다. 업무 서비스는 구현체를 모른다(DIP).</td></tr>
+</table>
+
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<pre class="raw">[개요]
+결재 · 공지 알림 메일을 MailSender 인터페이스 뒤에서 발송하여, 실제 발송 수단을 바꿔도 업무 코드가 바뀌지 않게 한다.
+
+[상세 기능 요구사항]
+1) MailSender.send(받는 주소, 제목, 본문) 하나로 발송한다.
+2) 제목 형식은 '[{태그}] {문서 제목}' 이다. 태그: 결재요청 · 결재승인 · 결재반려 · 긴급공지.
+3) 본문 형식은 '안녕하세요 {이름}님,\n{안내 문구}\n제목: {문서 제목}' 이며 필요 시 줄을 덧붙인다.
+4) 현재 구현체 ConsoleMailSender 는 콘솔에 '=== MAIL ===' 블록으로 출력한다.
+5) 받는 사람이 DB 에 없으면 발송하지 않는다.
+
+[입력 / 출력]
+- 입력: 받는 주소, 제목, 본문
+- 출력: 메일 발송(현재 콘솔 출력)
+
+[제약 조건 / 비기능 요구사항]
+- 제목 · 본문 문자열을 한 글자도 바꾸지 않는다(ApprovalNotificationOutputTest 가 출력 비교).
+- SMTP 등 실제 발송 구현체를 추가할 때 업무 서비스 코드를 고치지 않는다.
+
+[검증 기준]
+- 결재 상신 시 콘솔 출력의 TO 가 결재자 이메일, SUBJECT 가 '[결재요청] {제목}' 이다.
+- MailSender 를 대체 구현으로 바꿔 끼워도 기존 테스트가 통과한다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\common (MailSender · ConsoleMailSender · MailFormat)
+src\main\java\kr\hull\portal\approval\ApprovalNotifier.java
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</pre>
+
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표</h3>
+<table>
+<colgroup><col style="width:7%"><col style="width:24%"><col style="width:7%"><col style="width:20%"><col style="width:8%"><col style="width:34%"></colgroup><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead>
+<tr><td>상세 1</td><td>MailSender.send(받는 주소, 제목, 본문) 하나로 발송한다.</td><td>SRS 없음</td><td><code>common/MailSender.java:11-13</code>, <code>approval/ApprovalNotifier.java:46, 55, 64</code>, <code>notice/NoticeService.java:100</code></td><td class="v-ok">충족</td><td>메서드 1개 <code>void send(String to, String subject, String body)</code>. 업무 코드의 발송 호출은 모두 이 메서드.</td></tr>
+<tr><td>상세 2</td><td>제목 형식은 '[{태그}] {문서 제목}' 이다. 태그: 결재요청 · 결재승인 · 결재반려 · 긴급공지.</td><td>SRS 없음</td><td><code>common/MailFormat.java:19-21</code>, <code>approval/ApprovalNotifier.java:46, 55, 64</code>, <code>notice/NoticeService.java:100</code></td><td class="v-ok">충족</td><td><code>"[" + tag + "] " + title</code>. 태그 4종 모두 사용처 확인.</td></tr>
+<tr><td>상세 3</td><td>본문 형식은 '안녕하세요 {이름}님,\n{안내 문구}\n제목: {문서 제목}' 이며 필요 시 줄을 덧붙인다.</td><td>SRS 없음</td><td><code>common/MailFormat.java:24-26</code>, <code>approval/ApprovalNotifier.java:72-84</code>, <code>notice/NoticeService.java:101</code></td><td class="v-ok">충족</td><td>덧붙임 줄: 상신 <code>\n기안자ID: {id}</code>, 반려 <code>\n사유: {reason}</code>. 승인·긴급공지는 덧붙임 없음.</td></tr>
+<tr><td>상세 4</td><td>현재 구현체 ConsoleMailSender 는 콘솔에 '=== MAIL ===' 블록으로 출력한다.</td><td>SRS 없음</td><td><code>common/ConsoleMailSender.java:15-25</code></td><td class="v-ok">충족</td><td><code>=== MAIL ===</code> / <code>TO: </code> / <code>SUBJECT: </code> / 본문 / <code>============</code> 5줄. 유일한 <code>MailSender</code> 빈(@Component).</td></tr>
+<tr><td>상세 5</td><td>받는 사람이 DB 에 없으면 발송하지 않는다.</td><td>SRS 없음</td><td><code>approval/ApprovalNotifier.java:42-45, 51-54, 60-63, 68-70</code>, <code>notice/NoticeService.java:99</code></td><td class="v-ok">충족</td><td>결재: <code>findById(...).orElse(null)</code> → null 이면 return. 긴급공지: <code>userRepository.findAll()</code> 대상만 발송. 수신자 id 가 null 이면 <code>findById(null)</code> 예외(레거시 보존).</td></tr>
+<tr><td>입력</td><td>입력: 받는 주소, 제목, 본문</td><td>SRS 없음</td><td><code>common/MailSender.java:13</code></td><td class="v-ok">충족</td><td></td></tr>
+<tr><td>출력</td><td>출력: 메일 발송(현재 콘솔 출력)</td><td>SRS 없음</td><td><code>common/ConsoleMailSender.java:19-25</code></td><td class="v-ok">충족</td><td>실제 SMTP 발송 없음.</td></tr>
+<tr><td>제약 1</td><td>제목 · 본문 문자열을 한 글자도 바꾸지 않는다(ApprovalNotificationOutputTest 가 출력 비교).</td><td>SRS 없음</td><td><code>common/MailFormat.java:19-26</code>, <code>approval/ApprovalNotifier.java:72-84</code></td><td class="v-ok">충족</td><td><code>ApprovalNotificationOutputTest</code>(결재 3종) · <code>NoticeServiceCharacterizationTest</code>(긴급공지)가 전체 블록을 문자열 비교.</td></tr>
+<tr><td>제약 2</td><td>SMTP 등 실제 발송 구현체를 추가할 때 업무 서비스 코드를 고치지 않는다.</td><td>SRS 없음</td><td><code>approval/ApprovalNotifier.java:22-27</code>, <code>notice/NoticeService.java:43, 50-63</code></td><td class="v-ok">충족</td><td>두 곳 모두 <code>MailSender</code> 인터페이스를 생성자 주입. <code>ApprovalServiceMailUnitTest</code> 가 서비스 무수정으로 <code>FakeMailSender</code> 주입. 다만 두 번째 <code>@Component</code> 구현체를 추가하면 빈 중복이 되므로 <code>@Primary</code>/<code>@Profile</code>/<code>@ConditionalOnProperty</code> 등 설정 측 선택이 필요(서비스 코드는 무수정).</td></tr>
+</table>
+<h3>3.2 판정 요약</h3>
+<p>충족 <b>9</b> / 부분 충족 <b>0</b> / 미충족 <b>0</b> / 불일치 <b>0</b> / 확인 불가 <b>0</b></p>
+
+<h2>4. 구성 요소 설계</h2>
+<table>
+<thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처 (현행 유지)</th></tr></thead>
+<tr><td><code>common.MailSender</code> (interface)</td><td>발송 추상화</td><td><code>void send(String to, String subject, String body)</code></td></tr>
+<tr><td><code>common.ConsoleMailSender</code> (@Component)</td><td>현재 구현체 - 콘솔 출력</td><td><code>public void send(String to, String subject, String body)</code></td></tr>
+<tr><td><code>common.MailFormat</code> (final, 정적)</td><td>제목·본문 양식 한 곳</td><td><code>public static String subject(String tag, String title)</code><br><code>public static String body(String recipientName, String message, String title)</code></td></tr>
+<tr><td><code>approval.ApprovalNotifier</code> (@Component)</td><td>결재 알림 수신자·말머리·안내문 결정</td><td><code>public void notifySubmitted(Approval approval)</code><br><code>public void notifyApproved(Approval approval)</code><br><code>public void notifyRejected(Approval approval, String reason)</code></td></tr>
+<tr><td><code>notice.NoticeService</code></td><td>긴급공지 게시 시 전체 사용자에게 발송</td><td><code>private void notifyAllMembersOfEmergency(Notice notice)</code></td></tr>
+<tr><td>(테스트) <code>common.FakeMailSender</code></td><td>대체 구현 - 호출 내용만 기록</td><td><code>List&lt;SentMail&gt; getSentMails()</code></td></tr>
+</table>
+<p>참고: <code>common/SmtpMailSender.java</code> 는 <code>MailSender</code> 를 구현하지 않고 어디서도 참조되지 않는 레거시 클래스(git 미추적, 작업 트리에만 존재)로, 이름과 달리 콘솔에 같은 블록을 출력한다.</p>
+
+<h2>5. 인터페이스 설계</h2>
+<h3>5.1 Java 인터페이스</h3>
+<table>
+<thead><tr><th>파라미터</th><th>타입</th><th>설명</th><th>예시</th></tr></thead>
+<tr><td>to</td><td>String</td><td>받는 주소 (users.email)</td><td>park@hull.kr</td></tr>
+<tr><td>subject</td><td>String</td><td><code>[{태그}] {문서 제목}</code></td><td>[결재요청] 노트북 구매</td></tr>
+<tr><td>body</td><td>String</td><td><code>안녕하세요 {이름}님,\n{안내}\n제목: {제목}</code> + 덧붙임</td><td>안녕하세요 박팀장님,\n결재 요청이 도착했습니다.\n제목: 노트북 구매\n기안자ID: 1</td></tr>
+</table>
+<h3>5.2 알림 종류</h3>
+<table>
+<thead><tr><th>계기</th><th>수신자</th><th>태그</th><th>안내 문구</th><th>덧붙임 줄</th></tr></thead>
+<tr><td>결재 상신 (0→1)</td><td>결재자</td><td>결재요청</td><td>결재 요청이 도착했습니다.</td><td>\n기안자ID: {drafterId}</td></tr>
+<tr><td>결재 승인 (1→2)</td><td>기안자</td><td>결재승인</td><td>결재가 승인되었습니다.</td><td>없음</td></tr>
+<tr><td>결재 반려 (1→3)</td><td>기안자</td><td>결재반려</td><td>결재가 반려되었습니다.</td><td>\n사유: {reason}</td></tr>
+<tr><td>긴급공지 게시</td><td>전체 사용자(findAll 순)</td><td>긴급공지</td><td>긴급 공지가 게시되었습니다.</td><td>없음</td></tr>
+<tr><td>결재 취소 · 일정 · 일반 공지</td><td colspan="4">메일 없음</td></tr>
+</table>
+<h3>5.3 콘솔 출력 형식 (ConsoleMailSender)</h3>
+<pre>=== MAIL ===
+TO: park@hull.kr
+SUBJECT: [결재요청] 노트북 구매
+안녕하세요 박팀장님,
+결재 요청이 도착했습니다.
+제목: 노트북 구매
+기안자ID: 1
+============</pre>
+<p>오류 동작: 수신자 미존재 → 발송 생략(예외 없음). 수신자 id null → <code>findById(null)</code> 예외(보존). 발송 실패 처리·재시도 개념 없음.</p>
+
+<h2>6. 데이터 설계</h2>
+<p>메일 자체는 저장하지 않는다. 읽기 대상만 있다.</p>
+<table>
+<thead><tr><th>테이블</th><th>사용 컬럼</th><th>용도</th></tr></thead>
+<tr><td><code>users</code></td><td>id, name, email</td><td>수신자 조회·인사말 이름·받는 주소</td></tr>
+<tr><td><code>approval</code></td><td>title, drafter_id, approver_id</td><td>제목·수신자 결정·기안자ID 줄</td></tr>
+<tr><td><code>notice</code></td><td>title, category(2=긴급)</td><td>제목·긴급 여부</td></tr>
+</table>
+<p>상태 전이: 메일은 결재 상태 0→1, 1→2, 1→3 과 공지 0→1(긴급)이 <b>실제로 일어난 뒤</b>에만 발송된다(DB 저장값은 정수 그대로).</p>
+
+<h2>7. 처리 흐름</h2>
+<table>
+<thead><tr><th>순서</th><th>단계</th><th>결재 상신 예</th><th>소스</th></tr></thead>
+<tr><td>1</td><td>상태 변경 가드</td><td><code>approval.submit(...)</code> false 면 종료 (메일 없음)</td><td><code>ApprovalService.java:140-142</code></td></tr>
+<tr><td>2</td><td>저장</td><td><code>approvalRepository.save</code></td><td><code>ApprovalService.java:143</code></td></tr>
+<tr><td>3</td><td>수신자 조회</td><td><code>findRecipient(approverId)</code> - 없으면 종료</td><td><code>ApprovalNotifier.java:42-45, 68-70</code></td></tr>
+<tr><td>4</td><td>양식 조립</td><td><code>MailFormat.subject</code> · <code>submittedBody</code></td><td><code>ApprovalNotifier.java:46, 72-75</code></td></tr>
+<tr><td>5</td><td>발송</td><td><code>mailSender.send(email, subject, body)</code></td><td><code>ApprovalNotifier.java:46</code></td></tr>
+<tr><td>6</td><td>감사로그</td><td><code>APPROVAL SUBMIT</code> (메일 다음)</td><td><code>ApprovalService.java:145</code></td></tr>
+</table>
+<p>긴급공지: 게시 가드 → 저장 → 전체 사용자 루프 발송 → <code>NOTICE PUBLISH</code> 감사로그 (<code>NoticeService.java:87-94, 98-103</code>).</p>
+
+<h2>8. 예외 · 경계 처리</h2>
+<table>
+<thead><tr><th>상황</th><th>현재 동작</th><th>레거시 보존 여부</th></tr></thead>
+<tr><td>결재자/기안자가 DB 에 없음</td><td>메일 생략, 감사로그는 남음</td><td>보존</td></tr>
+<tr><td>수신자 id null</td><td><code>findById(null)</code> 예외</td><td>보존 (개선 대상)</td></tr>
+<tr><td>반려 사유 null</td><td>본문에 <code>사유: null</code></td><td>보존 (소스상 문자열 연결 결과, 테스트 미고정)</td></tr>
+<tr><td>사용자 email null</td><td><code>TO: null</code> 출력</td><td>보존 (소스상 문자열 연결 결과, 테스트 미고정)</td></tr>
+<tr><td>조건 불만족으로 무시된 처리</td><td>메일 없음</td><td>보존</td></tr>
+</table>
+
+<h2>9. 검증 설계</h2>
+<table>
+<thead><tr><th>검증 기준 (F열)</th><th>고정 테스트</th></tr></thead>
+<tr><td>결재 상신 시 콘솔 출력의 TO 가 결재자 이메일, SUBJECT 가 '[결재요청] {제목}' 이다.</td><td><code>ApprovalNotificationOutputTest#상신하면_결재자에게_결재요청_메일과_감사로그가_나간다</code></td></tr>
+<tr><td>MailSender 를 대체 구현으로 바꿔 끼워도 기존 테스트가 통과한다.</td><td><code>ApprovalServiceMailUnitTest</code> 7개 (FakeMailSender 주입), 예: <code>#상신하면_결재자에게_결재요청_메일을_한통_보낸다</code>, <code>#가짜_발송기를_주입하면_콘솔로_실제_메일이_나가지_않는다</code></td></tr>
+</table>
+<p>보조: 미존재 수신자 <code>RequirementAcceptanceTest#받는_사람이_DB에_없으면_메일을_보내지_않는다</code>, 승인·반려 <code>ApprovalNotificationOutputTest#승인하면_기안자에게_결재승인_메일과_감사로그가_나간다</code> · <code>#반려하면_기안자에게_사유가_담긴_결재반려_메일과_감사로그가_나간다</code>, 긴급공지 <code>NoticeServiceCharacterizationTest#긴급_공지를_게시하면_전체_사용자에게_긴급공지_메일이_한통씩_나간다</code>.</p>
+<h3>추가 테스트 제안</h3>
+<table>
+<thead><tr><th>제안 메서드명</th><th>내용 (변수는 영어)</th></tr></thead>
+<tr><td><code>가짜_발송기를_주입하면_긴급공지_메일이_사용자_수만큼_기록된다()</code></td><td><code>FakeMailSender fakeMailSender</code> 로 <code>NoticeService</code> 조립 → 긴급 공지 게시 → <code>getSentMails()</code> 크기 = 사용자 수, subject "[긴급공지] ..." (공지 쪽 대체 구현 검증 보강)</td></tr>
+<tr><td><code>승인할_때_기안자가_DB에_없으면_메일을_보내지_않는다()</code></td><td>drafterId 를 없는 id 로 둔 결재를 상신·승인 → <code>sentMails</code> 에 결재승인 없음</td></tr>
+</table>
+
+<h2>10. 검토 의견 · 후속 과제</h2>
+<table>
+<thead><tr><th>구분</th><th>내용</th></tr></thead>
+<tr class="keep"><td>보존 대상</td><td><code>MailSender.send(to, subject, body)</code> 시그니처, 제목·본문·덧붙임 줄·콘솔 블록 문자열(1글자도), 수신자 결정 규칙, 수신자 미존재 시 생략, 수신자 id null 예외, 저장 → 메일 → 감사로그 순서.</td></tr>
+<tr class="improve"><td>개선 대상</td><td>(1) 실제 SMTP 구현체 추가 시 <code>@ConditionalOnProperty("portal.mail.mode")</code> 또는 <code>@Profile</code> 로 빈 선택 - 서비스 무수정. (2) 미사용 레거시 <code>common/SmtpMailSender.java</code>(MailSender 미구현·콘솔 출력)는 실제 SMTP 구현과 이름이 충돌하므로 정리 대상(삭제 또는 이름 변경 - 사용자 확인 후). (3) 발송 실패 시 업무 트랜잭션 영향·재시도 정책 미정의. (4) 수신자 id null 방어는 동작 변경이므로 재설계 단계.</td></tr>
+<tr><td>연계 요구사항</td><td>REQ-F-002(상신), REQ-F-003(승인), REQ-F-004(반려), REQ-F-010(긴급공지), REQ-F-013(사용자 email), REQ-IF-002(감사로그 순서)</td></tr>
+</table>
+</main>

@@ -1,0 +1,218 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SDS - REQ-NF-002</title>
+<link rel="stylesheet" href="sds.css">
+<div class="cover"><h1>SDS - REQ-NF-002 조용한 실패를 명시적 오류 응답으로 전환</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<main class="sds" data-id="REQ-NF-002">
+
+<h2>1. 개요</h2>
+<table>
+<tr><th style="width:22%">요구사항 ID</th><td>REQ-NF-002</td></tr>
+<tr><th>요구사항명</th><td>조용한 실패를 명시적 오류 응답으로 전환</td></tr>
+<tr><th>대 / 중 / 소분류</th><td>PORTAL / Quality / Failure</td></tr>
+<tr><th>우선순위</th><td>High</td></tr>
+<tr><th>진행현황</th><td>기획중 (비고: 스멜 S19(★★★★). 리팩토링 범위 밖 재설계 항목)</td></tr>
+<tr><th>요약</th><td>결재 처리 · 공지 게시 · 일정 확정/등록에서 조건이 맞지 않으면 예외 없이 끝나거나(<code>return;</code>) <code>null</code> 을 돌려주는 현재 동작을, 코드 · 메시지를 담은 하나의 오류 응답 형식과 분기별 HTTP 상태(404 · 403 · 409 · 400)로 바꾼다.
+현재 소스에는 오류 응답 형식 · 예외 처리기가 전혀 없어 대부분 <b>미충족</b>이며, 이는 외부 관찰 동작을 바꾸는 <b>재설계</b>(리팩토링 아님) 항목이다.</td></tr>
+</table>
+
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<div class="raw">[개요]
+처리 조건이 맞지 않을 때 아무 응답 없이 끝나거나 null 을 돌려주던 동작을, 사유가 있는 오류 응답으로 바꾼다.
+
+[상세 기능 요구사항]
+1) 결재 처리에서 문서 없음 · 사용자 없음 · 정의되지 않은 action · 상태 불일치 · 권한 없음을 구분된 오류로 돌려준다.
+2) 공지 게시 · 일정 확정의 무시 분기도 같은 방식으로 오류를 돌려준다.
+3) 일정 등록 거부 시 null 대신 거부 사유(필수값 누락 · 시간 역전 · 시간 겹침)를 돌려준다.
+4) 오류 응답 본문 형식(코드 · 메시지)을 하나로 정한다.
+5) HTTP 상태는 없음 404, 권한 없음 403, 상태 불일치 409, 입력 오류 400 을 기본으로 한다.
+
+[입력 / 출력]
+- 입력: 현재 무시 · null 반환 분기
+- 출력: 오류 응답 형식, 분기별 HTTP 상태
+
+[제약 조건 / 비기능 요구사항]
+- 이 변경은 외부 동작을 바꾸므로 기존 특성화 테스트를 새 기대값으로 고치는 것을 별도 커밋으로 남긴다.
+- 성공 경로의 응답 형식은 바꾸지 않는다.
+- 화면(index.html)이 오류 응답을 받아 사용자에게 사유를 보인다.
+
+[검증 기준]
+- 존재하지 않는 결재 ID 로 process 를 호출하면 404 와 사유가 온다.
+- 사원이 승인하면 403 이 온다.
+- 성공한 처리의 응답은 변경 전과 같다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\approval
+src\main\java\kr\hull\portal\notice
+src\main\java\kr\hull\portal\schedule
+src\main\resources\static\index.html
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</div>
+
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표</h3>
+<table>
+<thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead>
+<tr><td>상세 1</td><td>결재 처리에서 문서 없음 · 사용자 없음 · 정의되지 않은 action · 상태 불일치 · 권한 없음을 구분된 오류로 돌려준다.</td><td>SRS 없음</td><td><code>approval/ApprovalService.java:116-133</code>, <code>:139-173</code>, <code>approval/Approval.java:123-167, 189-193</code></td><td class="v-no">미충족</td><td>5가지 분기 모두 <code>return;</code> 으로 조용히 끝난다. 엔티티는 <code>boolean false</code> 하나만 돌려주고, 승인 · 반려의 상태 · 지정 결재자 · 권한 검사가 <code>canBeDecidedBy</code> 한 식으로 합쳐져 있어 원인을 구분할 수 없다.</td></tr>
+<tr><td>상세 2</td><td>공지 게시 · 일정 확정의 무시 분기도 같은 방식으로 오류를 돌려준다.</td><td>SRS 없음</td><td><code>notice/NoticeService.java:79-89</code>, <code>notice/Notice.java:84-93</code>, <code>schedule/ScheduleService.java:79-89</code>, <code>schedule/Schedule.java:108-117</code></td><td class="v-no">미충족</td><td>없는 공지/일정 · 없는 사용자 · 권한/소유자 아님 · 상태 불일치 모두 조용히 리턴. 공지 · 일정은 REST 컨트롤러가 없다(<code>@RestController</code> 는 <code>ApprovalController</code> · <code>UserController</code> 2개뿐).</td></tr>
+<tr><td>상세 3</td><td>일정 등록 거부 시 null 대신 거부 사유(필수값 누락 · 시간 역전 · 시간 겹침)를 돌려준다.</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:46-51</code>, <code>schedule/Schedule.java:61-69</code></td><td class="v-no">미충족</td><td><code>isCreatable</code> 실패 · 겹침 모두 <code>null</code> 반환, 원인 구분 없음(소스 주석 50행 "재설계 단계 결함 후보").</td></tr>
+<tr><td>상세 4</td><td>오류 응답 본문 형식(코드 · 메시지)을 하나로 정한다.</td><td>SRS 없음</td><td>해당 코드 없음 (<code>@ControllerAdvice</code> · <code>@ExceptionHandler</code> · <code>ResponseEntity</code> Grep 결과 0건)</td><td class="v-no">미충족</td><td>현재 오류는 스프링 기본 오류 응답(500, NPE 등)뿐이다.</td></tr>
+<tr><td>상세 5</td><td>HTTP 상태는 없음 404, 권한 없음 403, 상태 불일치 409, 입력 오류 400 을 기본으로 한다.</td><td>SRS 없음</td><td><code>approval/ApprovalController.java:43-47</code> (반환형 <code>void</code>)</td><td class="v-no">미충족</td><td>process 는 성공 · 무시 모두 200 + 빈 본문. 필드 생략은 NPE 로 500.</td></tr>
+<tr><td>입력</td><td>현재 무시 · null 반환 분기</td><td>SRS 없음</td><td>6.3절 분기 목록(소스 줄 번호 포함)</td><td class="v-ok">충족</td><td>대상 분기 14곳을 소스에서 모두 식별했다(설계 입력으로서).</td></tr>
+<tr><td>출력</td><td>오류 응답 형식, 분기별 HTTP 상태</td><td>SRS 없음</td><td>해당 코드 없음</td><td class="v-no">미충족</td><td>5장 설계안으로 제시.</td></tr>
+<tr><td>제약 1</td><td>이 변경은 외부 동작을 바꾸므로 기존 특성화 테스트를 새 기대값으로 고치는 것을 별도 커밋으로 남긴다.</td><td>SRS 없음</td><td><code>git log</code> 에 해당 커밋 없음</td><td class="v-no">미충족</td><td>착수 전. CLAUDE.md "특성화 테스트 본문 절대 불변" 규칙과 충돌 → 10장 참조(사용자 승인 필요).</td></tr>
+<tr><td>제약 2</td><td>성공 경로의 응답 형식은 바꾸지 않는다.</td><td>SRS 없음</td><td><code>approval/dto/ApprovalResponse.java:16-28</code>, <code>ApprovalController.java:43-47</code></td><td class="v-ok">충족</td><td>현재 성공 경로(생성 12필드 JSON · process 200 빈 본문)는 그대로이며 테스트로 고정되어 있다. 변경 시에도 유지해야 할 기준선.</td></tr>
+<tr><td>제약 3</td><td>화면(index.html)이 오류 응답을 받아 사용자에게 사유를 보인다.</td><td>SRS 없음</td><td><code>static/index.html:117-118</code>, <code>:133-135</code></td><td class="v-no">미충족</td><td>기안 실패 시 <code>'생성 실패: '+r.status</code> 상태 숫자만, 처리(<code>act</code>)는 응답을 아예 확인하지 않는다.</td></tr>
+</table>
+<h3>3.2 판정 요약</h3>
+<p>충족 2 / 부분 충족 0 / 미충족 8 / 불일치 0 / 확인 불가 0 (총 10항목)</p>
+
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table>
+<thead><tr><th>검증 기준(F열)</th><th>테스트</th><th>현재 상태</th></tr></thead>
+<tr><td>존재하지 않는 결재 ID 로 process 를 호출하면 404 와 사유가 온다.</td><td>테스트 없음</td><td class="v-no">반대 동작이 고정됨: <code>ApprovalControllerTest#없는_결재_id를_처리해도_200과_빈_본문이다</code></td></tr>
+<tr><td>사원이 승인하면 403 이 온다.</td><td>테스트 없음</td><td class="v-no">반대 동작이 고정됨: <code>ApprovalServiceTest#결재자로_지정된_사원이_승인하면_조용히_무시된다</code>, <code>ApprovalServiceBranchTest#결재자로_지정된_사원이_반려하면_조용히_무시된다</code></td></tr>
+<tr><td>성공한 처리의 응답은 변경 전과 같다.</td><td><code>ApprovalControllerTest#처리_API는_200과_빈_본문을_돌려주고_상신이_반영된다</code>, <code>ApprovalControllerTest#결재_생성_응답은_필드_12개의_레거시_JSON이다</code></td><td class="v-ok">현재 green(기준선)</td></tr>
+</table>
+
+<h2>4. 구성 요소 설계</h2>
+<table>
+<thead><tr><th>클래스(신규/변경)</th><th>책임</th><th>주요 메서드 · 시그니처</th></tr></thead>
+<tr><td><code>common.error.PortalErrorCode</code> (신규 인터페이스)</td><td>오류 코드 이름 · HTTP 상태 · 기본 메시지의 공통 계약</td><td><code>String name()</code>, <code>HttpStatus httpStatus()</code>, <code>String defaultMessage()</code></td></tr>
+<tr><td><code>common.error.PortalException</code> (신규)</td><td>업무 규칙 위반을 알리는 런타임 예외(코드 + 상세 메시지)</td><td><code>PortalException(PortalErrorCode errorCode, String detailMessage)</code>, <code>PortalErrorCode getErrorCode()</code></td></tr>
+<tr><td><code>common.error.ErrorResponse</code> (신규 record)</td><td>오류 응답 본문 단일 형식</td><td><code>record ErrorResponse(String code, String message, List&lt;FieldErrorDetail&gt; fieldErrors)</code> · <code>fieldErrors</code> 는 비어 있으면 생략(<code>@JsonInclude(NON_EMPTY)</code>, REQ-NF-003 이 채움)</td></tr>
+<tr><td><code>common.error.PortalExceptionHandler</code> (신규 <code>@RestControllerAdvice</code>)</td><td>예외 → HTTP 상태 + <code>ErrorResponse</code> 변환 한 곳</td><td><code>ResponseEntity&lt;ErrorResponse&gt; handlePortalException(PortalException exception)</code></td></tr>
+<tr><td><code>approval.ApprovalErrorCode</code> (신규 enum, PortalErrorCode 구현)</td><td>결재 처리 실패 원인</td><td><code>APPROVAL_NOT_FOUND(404)</code>, <code>REQUESTER_NOT_FOUND(404)</code>, <code>UNKNOWN_APPROVAL_ACTION(400)</code>, <code>INVALID_APPROVAL_STATUS(409)</code>, <code>NOT_DESIGNATED_APPROVER(403)</code>, <code>NO_APPROVAL_AUTHORITY(403)</code>, <code>NOT_DRAFTER(403)</code></td></tr>
+<tr><td><code>notice.NoticeErrorCode</code> (신규 enum)</td><td>공지 게시 실패 원인</td><td><code>NOTICE_NOT_FOUND(404)</code>, <code>PUBLISHER_NOT_FOUND(404)</code>, <code>NO_NOTICE_PUBLISH_AUTHORITY(403)</code>, <code>INVALID_NOTICE_STATUS(409)</code></td></tr>
+<tr><td><code>schedule.ScheduleErrorCode</code> (신규 enum)</td><td>일정 등록 · 확정 실패 원인</td><td><code>SCHEDULE_NOT_FOUND(404)</code>, <code>REQUESTER_NOT_FOUND(404)</code>, <code>NOT_SCHEDULE_OWNER(403)</code>, <code>INVALID_SCHEDULE_STATUS(409)</code>, <code>REQUIRED_VALUE_MISSING(400)</code>, <code>END_BEFORE_START(400)</code>, <code>SCHEDULE_TIME_OVERLAP(409)</code></td></tr>
+<tr><td><code>Approval</code> (변경)</td><td>전제조건 위반 원인을 판별</td><td>기존 <code>boolean submit/approve/reject/cancel</code> 유지 + 신규 <code>Optional&lt;ApprovalErrorCode&gt; findApproveViolation(User requester)</code> 등 원인 판별 메서드. 승인 · 반려 검사 순서: 상태(409) → 지정 결재자(403) → 권한(403)</td></tr>
+<tr><td><code>ApprovalService</code> (변경)</td><td>조용한 <code>return</code> → <code>throw new PortalException(...)</code></td><td><b>public 시그니처 유지</b>: <code>void processApproval(Long id, Long userId, int action, String reason)</code>, <code>void processApproval(Long id, ProcessApprovalCommand command)</code> (반환형 그대로, 실패 시 예외)</td></tr>
+<tr><td><code>NoticeService</code>, <code>ScheduleService</code> (변경)</td><td>같은 방식</td><td><code>void publish(Long id, Long userId)</code>, <code>void confirm(Long id, Long userId)</code>, <code>Schedule create(String, Long, LocalDateTime, LocalDateTime, String)</code> 시그니처 유지 - 거부 시 <code>null</code> 대신 예외</td></tr>
+<tr><td><code>Schedule</code> (변경)</td><td>등록 거부 원인 판별</td><td>기존 <code>static boolean isCreatable(...)</code> 유지 + 신규 <code>static Optional&lt;ScheduleErrorCode&gt; findCreationViolation(String title, LocalDateTime startAt, LocalDateTime endAt)</code></td></tr>
+</table>
+
+<h2>5. 인터페이스 설계</h2>
+<h3>5.1 엔드포인트 (URL · HTTP 메서드 변경 없음)</h3>
+<table>
+<thead><tr><th>엔드포인트</th><th>성공(변경 없음)</th><th>실패(신규)</th></tr></thead>
+<tr><td><code>POST /api/approvals/{id}/process</code></td><td>200 + 빈 본문</td><td>404 결재 없음 · 사용자 없음 / 400 정의되지 않은 action · 입력 오류 / 409 상태 불일치 / 403 지정 결재자 아님 · 권한 없음 · 기안자 아님(취소)</td></tr>
+<tr><td><code>POST /api/approvals</code></td><td>200 + 12필드 JSON</td><td>400 입력 오류(REQ-NF-003)</td></tr>
+<tr><td>공지 게시 · 일정 확정 · 일정 등록</td><td colspan="2">REST API 없음(서비스만 존재). 서비스가 <code>PortalException</code> 을 던지도록 설계하고, 컨트롤러가 추가되면 같은 처리기가 HTTP 로 매핑한다.</td></tr>
+</table>
+<h3>5.2 오류 응답 본문(단일 형식)</h3>
+<table>
+<thead><tr><th>필드</th><th>타입</th><th>설명</th></tr></thead>
+<tr><td><code>code</code></td><td>String</td><td>오류 코드 enum 이름 (예: <code>APPROVAL_NOT_FOUND</code>)</td></tr>
+<tr><td><code>message</code></td><td>String</td><td>사용자에게 보일 한글 사유</td></tr>
+<tr><td><code>fieldErrors</code></td><td>Array(선택)</td><td>입력 검증 실패일 때만: <code>[{"field": String, "reason": String}]</code> (REQ-NF-003)</td></tr>
+</table>
+<pre>HTTP/1.1 404
+{"code":"APPROVAL_NOT_FOUND","message":"결재 문서를 찾을 수 없습니다. (id=999999)"}
+
+HTTP/1.1 403
+{"code":"NO_APPROVAL_AUTHORITY","message":"결재 권한(팀장 이상)이 없습니다."}
+
+HTTP/1.1 409
+{"code":"INVALID_APPROVAL_STATUS","message":"상신 상태의 문서만 승인할 수 있습니다. (현재: 승인)"}</pre>
+<h3>5.3 화면(index.html)</h3>
+<p><code>api()</code> 래퍼에서 <code>!response.ok</code> 이면 본문을 JSON 으로 읽어 <code>message</code> 를 <code>alert</code> 로 보인다. <code>act()</code> 도 결과를 확인한다. 본문이 JSON 이 아니면(예: 500) 기존처럼 상태 숫자를 보인다.</p>
+
+<h2>6. 데이터 설계</h2>
+<p>DB 스키마 · 저장값 변경 없음. 결재 status 는 <code>ApprovalStatusConverter</code> 로 0/1/2/3/9 정수 그대로, 공지 0/1/9 · 일정 0/1/9 정수 그대로 저장한다. 오류 코드는 응답 전용이며 저장하지 않는다.</p>
+<h3>6.1 결재 상태 전이표 (상태 불일치 = 409 로 바뀌는 칸)</h3>
+<table>
+<thead><tr><th>현재 상태(DB)</th><th>상신 action 1</th><th>승인 action 2</th><th>반려 action 3</th><th>취소 action 9</th></tr></thead>
+<tr><td>임시저장 0</td><td>→ 상신 1</td><td>409</td><td>409</td><td>→ 취소 9 (기안자 아니면 403)</td></tr>
+<tr><td>상신 1</td><td>409</td><td>→ 승인 2 (결재자 · 권한 아니면 403)</td><td>→ 반려 3 (동일)</td><td>→ 취소 9 (기안자 아니면 403)</td></tr>
+<tr><td>승인 2 · 반려 3 · 취소 9</td><td>409</td><td>409</td><td>409</td><td>409</td></tr>
+</table>
+<h3>6.2 현재 무시 · null 분기 목록 → 오류 코드</h3>
+<table>
+<thead><tr><th>#</th><th>소스 위치</th><th>현재 동작</th><th>설계 오류 코드 / HTTP</th></tr></thead>
+<tr><td>1</td><td><code>ApprovalService.java:117-118</code></td><td>없는 결재 → return</td><td>APPROVAL_NOT_FOUND / 404</td></tr>
+<tr><td>2</td><td><code>ApprovalService.java:121-122</code></td><td>없는 사용자 → return</td><td>REQUESTER_NOT_FOUND / 404</td></tr>
+<tr><td>3</td><td><code>ApprovalService.java:125-126</code></td><td>정의되지 않은 action → return</td><td>UNKNOWN_APPROVAL_ACTION / 400</td></tr>
+<tr><td>4</td><td><code>Approval.java:124-125</code> → <code>ApprovalService.java:140-141</code></td><td>임시저장 아닌 상신 → false</td><td>INVALID_APPROVAL_STATUS / 409</td></tr>
+<tr><td>5</td><td><code>Approval.java:189-193</code> → <code>ApprovalService.java:149-150, 158-159</code></td><td>승인 · 반려 조건 불충족 → false</td><td>상태 409 / 지정 결재자 아님 403 / 권한 없음 403 (분리)</td></tr>
+<tr><td>6</td><td><code>Approval.java:158-163</code> → <code>ApprovalService.java:168-169</code></td><td>취소 불가 상태 · 기안자 아님 → false</td><td>INVALID_APPROVAL_STATUS 409 / NOT_DRAFTER 403</td></tr>
+<tr><td>7</td><td><code>NoticeService.java:80-82</code></td><td>없는 공지</td><td>NOTICE_NOT_FOUND / 404</td></tr>
+<tr><td>8</td><td><code>NoticeService.java:84-86</code></td><td>없는 사용자</td><td>PUBLISHER_NOT_FOUND / 404</td></tr>
+<tr><td>9</td><td><code>Notice.java:85-90</code> → <code>NoticeService.java:87-88</code></td><td>권한 없음 · 임시 아님</td><td>NO_NOTICE_PUBLISH_AUTHORITY 403 / INVALID_NOTICE_STATUS 409</td></tr>
+<tr><td>10</td><td><code>ScheduleService.java:80-82</code></td><td>없는 일정</td><td>SCHEDULE_NOT_FOUND / 404</td></tr>
+<tr><td>11</td><td><code>ScheduleService.java:84-86</code></td><td>없는 사용자</td><td>REQUESTER_NOT_FOUND / 404</td></tr>
+<tr><td>12</td><td><code>Schedule.java:109-114</code> → <code>ScheduleService.java:87-88</code></td><td>소유자 아님 · 예정 아님</td><td>NOT_SCHEDULE_OWNER 403 / INVALID_SCHEDULE_STATUS 409</td></tr>
+<tr><td>13</td><td><code>Schedule.java:62-68</code> → <code>ScheduleService.java:46-48</code></td><td>제목 · 시각 누락, 끝 &lt; 시작 → null</td><td>REQUIRED_VALUE_MISSING 400 / END_BEFORE_START 400</td></tr>
+<tr><td>14</td><td><code>ScheduleService.java:49-51</code></td><td>시간 겹침 → null</td><td>SCHEDULE_TIME_OVERLAP / 409</td></tr>
+</table>
+
+<h2>7. 처리 흐름</h2>
+<table>
+<thead><tr><th>단계</th><th>결재 처리 (설계 후)</th><th>현재</th></tr></thead>
+<tr><td>1 조회 가드</td><td>결재 없음 → 404 예외, 사용자 없음 → 404 예외</td><td>조용히 return</td></tr>
+<tr><td>2 action 가드</td><td><code>ApprovalAction.fromCode</code> 빈 값 → 400 예외</td><td>조용히 return</td></tr>
+<tr><td>3 전제조건 가드</td><td>엔티티의 위반 원인 판별 → 409 / 403 예외</td><td>false → return</td></tr>
+<tr><td>4 상태 변경</td><td>엔티티 <code>submit/approve/reject/cancel</code> (변경 없음)</td><td>동일</td></tr>
+<tr><td>5 저장</td><td><code>approvalRepository.save</code></td><td>동일</td></tr>
+<tr><td>6 메일</td><td><code>ApprovalNotifier</code> (취소는 없음)</td><td>동일</td></tr>
+<tr><td>7 감사로그</td><td><code>ApprovalAuditRecorder</code></td><td>동일</td></tr>
+<tr><td>8 응답</td><td>성공 200 빈 본문 / 예외 → <code>PortalExceptionHandler</code> → 상태코드 + ErrorResponse</td><td>항상 200 빈 본문</td></tr>
+</table>
+<p>실패 시에는 3단계 이전에 예외가 나므로 저장 · 메일 · 감사로그가 일어나지 않는다(현재 "무시 시 부수효과 없음"과 같은 결과).</p>
+
+<h2>8. 예외 · 경계 처리</h2>
+<table>
+<thead><tr><th>경우</th><th>현재 동작</th><th>설계</th><th>레거시 보존 여부</th></tr></thead>
+<tr><td>결재 id · 사용자 id 가 null (서비스 직접 호출)</td><td>저장소 예외(<code>ApprovalProcessCharacterizationTest#결재_id가_null이면_저장소에서_예외가_난다</code>)</td><td>입력 오류 400 (REQ-NF-003 검증이 먼저 막음)</td><td>변경(재설계)</td></tr>
+<tr><td>필드 생략(NPE)</td><td>500</td><td>400 (REQ-NF-003)</td><td>변경(재설계)</td></tr>
+<tr><td>결재자 미지정 결재 상신</td><td>상태 1 로 바뀐 뒤 결재자 조회 예외(<code>ApprovalServiceSafetyNetTest#결재자가_지정되지_않은_결재를_상신하면_...</code>)</td><td>본 요구 범위 밖 - 그대로. 후속 과제로 기록</td><td>보존</td></tr>
+<tr><td>소유자 null 일정 확정</td><td>NPE (<code>ScheduleServiceCharacterizationTest#소유자가_null인_일정을_확정하면_NullPointerException이_난다</code>)</td><td>NOT_SCHEDULE_OWNER 403 권장(소유자 비교를 null-safe 로)</td><td>변경(재설계) - 별도 판단</td></tr>
+<tr><td>정의되지 않은 결재 상태 code 읽기</td><td><code>IllegalArgumentException</code></td><td>그대로(데이터 손상 = 500)</td><td>보존</td></tr>
+<tr><td>성공 경로</td><td>200 빈 본문 / 12필드 JSON</td><td>그대로</td><td>보존</td></tr>
+</table>
+
+<h2>9. 검증 설계</h2>
+<h3>9.1 검증 기준 ↔ 테스트 (설계 후)</h3>
+<table>
+<thead><tr><th>검증 기준</th><th>테스트</th></tr></thead>
+<tr><td>존재하지 않는 결재 ID 로 process → 404 + 사유</td><td>신규 <code>ApprovalErrorResponseTest#없는_결재_id로_처리하면_404와_사유가_온다</code></td></tr>
+<tr><td>사원이 승인 → 403</td><td>신규 <code>ApprovalErrorResponseTest#결재자로_지정된_사원이_승인하면_403이_온다</code></td></tr>
+<tr><td>성공 응답 동일</td><td>기존 <code>ApprovalControllerTest#처리_API는_200과_빈_본문을_돌려주고_상신이_반영된다</code>, <code>#결재_생성_응답은_필드_12개의_레거시_JSON이다</code> (수정 없이 green)</td></tr>
+</table>
+<h3>9.2 추가 제안 테스트 (메서드명 한글, 변수 영어)</h3>
+<pre>@Test void 없는_결재_id로_처리하면_404와_사유가_온다()
+@Test void 없는_사용자로_처리하면_404가_온다()
+@Test void 정의되지_않은_action이면_400이_온다()
+@Test void 이미_상신된_결재를_다시_상신하면_409가_온다()
+@Test void 결재자로_지정된_사원이_승인하면_403이_온다()
+@Test void 지정된_결재자가_아닌_팀장이_승인하면_403이_온다()
+@Test void 기안자가_아닌_사용자가_취소하면_403이_온다()
+@Test void 오류_응답은_code와_message_두_필드다()
+@Test void 사원이_공지를_게시하면_권한_오류가_난다()
+@Test void 겹치는_일정을_등록하면_시간_겹침_오류가_난다()
+@Test void 끝이_시작보다_앞이면_시간_역전_오류가_난다()
+
+// 예: 변수는 영어
+long missingApprovalId = 999_999L;
+mockMvc.perform(post("/api/approvals/" + missingApprovalId + "/process")
+        .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":2,\"action\":2}"))
+    .andExpect(status().isNotFound())
+    .andExpect(jsonPath("$.code").value("APPROVAL_NOT_FOUND"));</pre>
+<h3>9.3 기존 특성화 테스트 영향 (기대값이 바뀌는 것)</h3>
+<p><code>ApprovalControllerTest#없는_결재_id를_처리해도_200과_빈_본문이다</code>, <code>ApprovalServiceTest#결재자로_지정된_사원이_승인하면_조용히_무시된다</code> · <code>#없는_결재_id로_처리하면_예외없이_무시된다</code>, <code>ApprovalServiceBranchTest</code>의 "조용히_무시된다" 계열, <code>ApprovalProcessCharacterizationTest#정의되지_않은_action_0_4_8_10_음수는_모두_예외없이_무시된다</code> · <code>#무시된_처리는_수정시각을_바꾸지_않는다</code>, <code>NoticeServiceCharacterizationTest</code> · <code>ScheduleServiceCharacterizationTest</code>의 무시 · null 계열.
+F열 제약 1에 따라 <b>별도 커밋</b>으로, CLAUDE.md 규칙에 따라 <b>diff 를 보여 주고 사용자 승인</b>을 받은 뒤 바꾼다.</p>
+
+<h2>10. 검토 의견 · 후속 과제</h2>
+<table>
+<thead><tr><th>구분</th><th>내용</th></tr></thead>
+<tr class="keep"><td>보존 대상</td><td>API URL · HTTP 메서드(<code>/api/approvals/{id}/process</code> POST), 성공 응답 형식(200 빈 본문 · 12필드 JSON), DB 저장값(0/1/2/3/9), 서비스 public 메서드 이름 · 시그니처 · 반환형, 저장 → 메일 → 감사로그 순서, 메일 · 감사로그 문자열.</td></tr>
+<tr class="improve"><td>개선 대상</td><td>조용한 실패(14개 분기)를 구분된 오류로. <b>이는 관찰 가능한 동작 변경이므로 리팩토링이 아니라 재설계 단계</b>이며, CLAUDE.md 불변 규칙("조용히 무시하던 케이스를 예외로 바꾸지 않음")의 적용 범위 밖에서 별도 단계로 진행해야 한다.</td></tr>
+<tr class="improve"><td>개선 대상</td><td>특성화 테스트 기대값 변경은 F열 제약 1과 CLAUDE.md "테스트 본문 절대 불변" 이 충돌한다 → 기존 테스트는 재설계 착수 전 마지막 green 커밋에 기록으로 남기고, 기대값 변경은 별도 커밋 + 사용자 승인으로 처리할 것을 제안.</td></tr>
+<tr class="improve"><td>개선 대상</td><td>공지 · 일정 REST API 부재 - HTTP 상태 매핑은 컨트롤러가 생길 때 적용된다. 컨트롤러 추가 여부는 별도 요구사항으로 정해야 한다.</td></tr>
+<tr><td>연계 요구사항</td><td>REQ-NF-003(검증 실패 400 이 이 형식을 따름), REQ-SE-002(기안자 아닌 상신 거절 → 403 NOT_DRAFTER 재사용).</td></tr>
+</table>
+</main>

@@ -1,0 +1,63 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="sds.css">
+<title>SDS - REQ-F-007 결재 상태 표시명 및 금액 등급 산정</title>
+<main class="sds" data-id="REQ-F-007">
+<div class="cover"><h1>SDS - REQ-F-007 결재 상태 표시명 및 금액 등급 산정</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<h2>1. 개요</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td>요구사항 ID</td><td>REQ-F-007</td></tr><tr><td>요구사항명</td><td>결재 상태 표시명 및 금액 등급 산정</td></tr><tr><td>분류 (대/중/소)</td><td>PORTAL / Approval / Grade</td></tr><tr><td>우선순위</td><td>Low</td></tr><tr><td>진행현황</td><td>테스트중</td></tr><tr><td>엑셀 비고</td><td>소스 역추출.</td></tr><tr><td>요약</td><td>ApprovalService.statusLabel(Approval) 이 ApprovalStatus enum 의 라벨(0 임시저장 · 1 상신 · 2 승인 · 3 반려 · 9 취소, 없으면 알수없음)을, ApprovalService.amountGrade(Approval) 이 AmountGrade enum(S ≥ 1000만 · A ≥ 100만 · B ≥ 10만 · C)의 이름을 돌려준다. 모두 구현돼 있고 경계값 · 상태 9 검증 기준이 테스트로 고정돼 있다. 다만 API · 화면에서 이 메서드를 부르는 곳은 없다.</td></tr><tr><td>분석 범위</td><td>SRS 없음 (엑셀 F열 · 소스만으로 분석). 소스 위치의 경로 접두 <code>src/main/java/kr/hull/portal/</code> 는 줄여 적는다 (화면은 <code>src/main/resources/static/</code>, 테스트는 <code>src/test/java/kr/hull/portal/</code>).</td></tr></tbody></table>
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<div class="raw">[개요]
+결재 상태 코드를 화면 표시명으로 바꾸고, 결재 금액을 S · A · B · C 등급으로 분류한다.
+
+[상세 기능 요구사항]
+1) 상태 표시명: 0=임시저장, 1=상신, 2=승인, 3=반려, 9=취소. 상태가 없으면 '알수없음'.
+2) 금액 등급: 10,000,000원 이상 S, 1,000,000원 이상 A, 100,000원 이상 B, 그 외 C.
+3) 등급 기준 금액은 AmountGrade enum 한 곳에서만 정의한다.
+
+[입력 / 출력]
+- 입력: 결재 문서
+- 출력: 상태 표시명 문자열, 금액 등급 문자열(S/A/B/C)
+
+[제약 조건 / 비기능 요구사항]
+- 표시명 · 등급 문자열을 바꾸지 않는다(화면 · 테스트가 문자열을 비교한다).
+
+[검증 기준]
+- 금액 10,000,000 / 9,999,999 / 1,000,000 / 100,000 / 99,999 경계값에서 등급이 S / A / A / B / C 로 나온다.
+- 상태 9 의 표시명이 '취소' 다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\approval (ApprovalStatus · AmountGrade · ApprovalService.statusLabel · amountGrade)
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</div>
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표 (F열 문장 ↔ 소스)</h3>
+<table><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치(파일:줄)</th><th>판정</th><th>비고</th></tr></thead><tbody><tr><td>상세 1-a</td><td>상태 표시명: 0=임시저장, 1=상신, 2=승인, 3=반려, 9=취소.</td><td>SRS 없음</td><td><code>approval/ApprovalStatus.java:17-21,37-39</code> · <code>approval/ApprovalService.java:176-179</code></td><td><span class="v-ok">충족</span></td><td>라벨은 enum 상수에 붙어 있다.</td></tr><tr><td>상세 1-b</td><td>상태가 없으면 '알수없음'.</td><td>SRS 없음</td><td><code>approval/ApprovalService.java:177-178</code></td><td><span class="v-ok">충족</span></td><td>null 일 때만 해당. 실제로는 기본값 DRAFT · NOT NULL 컬럼 · <code>setStatus</code> 의 <code>fromCode</code> 예외 때문에 null 이 되는 경로는 <code>changeStatus(null)</code> 뿐 (<code>Approval.java:51-53,72,75</code>). 정의 밖 code(예: 5)는 '알수없음'이 아니라 IllegalArgumentException (<code>ApprovalStatus.java:45-52</code>).</td></tr><tr><td>상세 2</td><td>금액 등급: 10,000,000원 이상 S, 1,000,000원 이상 A, 100,000원 이상 B, 그 외 C.</td><td>SRS 없음</td><td><code>approval/AmountGrade.java:16-19,32-39</code> · <code>approval/Approval.java:184-186</code></td><td><span class="v-ok">충족</span></td><td>경계는 이상(&gt;=). 음수도 C.</td></tr><tr><td>상세 3</td><td>등급 기준 금액은 AmountGrade enum 한 곳에서만 정의한다.</td><td>SRS 없음</td><td><code>approval/AmountGrade.java:16-19</code> · <code>approval/Approval.java:36-40</code></td><td><span class="v-ok">충족</span></td><td>Approval 의 <code>HIGH_PRIORITY_EXPENSE_THRESHOLD = 1_000_000L</code> 은 상신 시 우선순위 상향 기준(다른 규칙)이며 등급에 쓰이지 않는다.</td></tr><tr><td>입력</td><td>입력: 결재 문서</td><td>SRS 없음</td><td><code>approval/ApprovalService.java:176,186</code></td><td><span class="v-ok">충족</span></td><td>두 메서드 모두 <code>Approval</code> 인자.</td></tr><tr><td>출력</td><td>출력: 상태 표시명 문자열, 금액 등급 문자열(S/A/B/C)</td><td>SRS 없음</td><td><code>approval/ApprovalService.java:178,187</code></td><td><span class="v-ok">충족</span></td><td><code>getLabel()</code> · <code>name()</code> 문자열 반환.</td></tr><tr><td>제약</td><td>표시명 · 등급 문자열을 바꾸지 않는다(화면 · 테스트가 문자열을 비교한다).</td><td>SRS 없음</td><td><code>approval/ApprovalStatus.java:17-21</code> · <code>approval/AmountGrade.java:16-19</code></td><td><span class="v-ok">충족</span></td><td>테스트가 문자열을 고정한다. 단 화면(index.html:82-83)은 서버 라벨을 쓰지 않고 같은 문자열을 JS 에 따로 가지고 있다(중복).</td></tr></tbody></table>
+<h3>3.2 판정 요약</h3>
+<p><span class="v-ok">충족 7</span> / <span class="v-part">부분 충족 0</span> / <span class="v-no">미충족 0</span> / <span class="v-diff">불일치 0</span> / <span class="v-unk">확인 불가 0</span></p>
+<p>참고: <code>statusLabel</code> · <code>amountGrade</code> 는 운영 코드(컨트롤러 · 화면)에서 호출되지 않는다 (src/main 에서 정의만 있고 호출은 테스트뿐). 응답 JSON 에도 표시명 · 등급 필드는 없다.</p>
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table><thead><tr><th>검증 기준(F열)</th><th>고정하는 테스트</th><th>비고</th></tr></thead><tbody><tr><td>금액 10,000,000 / 9,999,999 / 1,000,000 / 100,000 / 99,999 경계값에서 등급이 S / A / A / B / C 로 나온다.</td><td><code>ApprovalServiceSafetyNetTest#금액_경계값별_등급을_돌려준다</code></td><td>CsvSource 6개 값(999,999 → B 포함)이 5개 경계를 모두 덮는다.</td></tr><tr><td>상태 9 의 표시명이 '취소' 다.</td><td><code>ApprovalServiceSafetyNetTest#상태_코드별_라벨을_돌려준다</code></td><td>0 · 1 · 2 · 3 · 9 모두 검사.</td></tr></tbody></table>
+<h2>4. 구성 요소 설계</h2>
+<table><thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처</th><th>설계 방침</th></tr></thead><tbody><tr><td>ApprovalStatus (enum)</td><td>상태 code ↔ 표시명 단일 정의</td><td><code>int getCode()</code> · <code>String getLabel()</code> · <code>static ApprovalStatus fromCode(int code)</code></td><td>라벨 문자열 · code 현행 유지</td></tr><tr><td>AmountGrade (enum)</td><td>금액 등급 경계 단일 정의</td><td><code>long getMinimumAmount()</code> · <code>static AmountGrade of(long amount)</code></td><td>경계값 · 이름(S/A/B/C) 현행 유지</td></tr><tr><td>Approval (entity)</td><td>등급 계산 위임 · enum 상태 접근</td><td><code>AmountGrade amountGrade()</code> · <code>ApprovalStatus approvalStatus()</code></td><td>get 접두 없음 → JSON 에 안 나감 (12개 필드 보존)</td></tr><tr><td>ApprovalService</td><td>표시명 · 등급 문자열 제공 (레거시 계약)</td><td><code>public String statusLabel(Approval approval)</code><br><code>public String amountGrade(Approval approval)</code></td><td>public 시그니처 · 반환 타입 String 현행 유지</td></tr></tbody></table>
+<h2>5. 인터페이스 설계</h2>
+<p>REST 엔드포인트 없음 - 서비스 메서드 계약만 있다. 응답 JSON(ApprovalResponse 12개 필드)에도 표시명 · 등급은 포함되지 않는다. 노출이 필요해지면 기존 12개 필드를 바꾸지 말고 별도 조회 API 나 새 DTO 로 더한다(재설계 단계).</p><table><thead><tr><th>메서드</th><th>입력</th><th>출력</th><th>예시</th></tr></thead><tbody><tr><td><code>ApprovalService.statusLabel(Approval)</code></td><td>결재 문서</td><td>String</td><td>status 9 → "취소", status null → "알수없음"</td></tr><tr><td><code>ApprovalService.amountGrade(Approval)</code></td><td>결재 문서</td><td>String</td><td>amount 1,200,000 → "A", 99,999 → "C"</td></tr></tbody></table>
+<h2>6. 데이터 설계</h2>
+<table><thead><tr><th>enum</th><th>상수</th><th>DB/계약 값</th><th>표시명 · 기준</th></tr></thead><tbody><tr><td>ApprovalStatus</td><td>DRAFT</td><td>0</td><td>임시저장</td></tr><tr><td>ApprovalStatus</td><td>SUBMITTED</td><td>1</td><td>상신</td></tr><tr><td>ApprovalStatus</td><td>APPROVED</td><td>2</td><td>승인</td></tr><tr><td>ApprovalStatus</td><td>REJECTED</td><td>3</td><td>반려</td></tr><tr><td>ApprovalStatus</td><td>CANCELED</td><td>9</td><td>취소</td></tr><tr><td>AmountGrade</td><td>S</td><td>(저장 안 함)</td><td>≥ 10,000,000</td></tr><tr><td>AmountGrade</td><td>A</td><td>(저장 안 함)</td><td>≥ 1,000,000</td></tr><tr><td>AmountGrade</td><td>B</td><td>(저장 안 함)</td><td>≥ 100,000</td></tr><tr><td>AmountGrade</td><td>C</td><td>(저장 안 함)</td><td>그 외 (음수 포함)</td></tr></tbody></table><p>DB 의 approval.status 는 ApprovalStatusConverter 로 정수 code(0/1/2/3/9) 그대로 저장한다 (`ApprovalStatusConverter.java:16-24`). 등급은 저장하지 않고 amount 로 매번 계산한다. 상태 전이는 이 요구사항 범위 밖(REQ-F-002~005).</p>
+<h2>7. 처리 흐름</h2>
+<table><thead><tr><th>단계</th><th>처리</th><th>조건 불만족 시</th><th>소스</th></tr></thead><tbody><tr><td>1 (표시명)</td><td><code>approval.approvalStatus()</code> 로 enum 을 얻는다</td><td>-</td><td><code>ApprovalService.java:177</code></td></tr><tr><td>2 (표시명)</td><td>null 이면 "알수없음", 아니면 <code>getLabel()</code></td><td>-</td><td><code>ApprovalService.java:178</code></td></tr><tr><td>1 (등급)</td><td><code>approval.amountGrade()</code> → <code>AmountGrade.of(amount)</code></td><td>-</td><td><code>Approval.java:184-186</code></td></tr><tr><td>2 (등급)</td><td>S → A → B 순서로 <code>amount &gt;= minimumAmount</code> 첫 일치, 없으면 C</td><td>-</td><td><code>AmountGrade.java:32-39</code></td></tr><tr><td>3 (등급)</td><td>enum <code>name()</code> 문자열 반환</td><td>-</td><td><code>ApprovalService.java:187</code></td></tr></tbody></table>
+<h2>8. 예외 · 경계 처리</h2>
+<table><thead><tr><th>경우</th><th>현재 동작</th><th>근거</th><th>레거시 보존 여부</th></tr></thead><tbody><tr><td>상태 null</td><td>"알수없음"</td><td><code>ApprovalService.java:178</code></td><td>보존</td></tr><tr><td>정의 밖 상태 code (4~8 등) 설정 · 조회</td><td><code>setStatus</code> / DB 읽기에서 IllegalArgumentException</td><td><code>ApprovalStatus.java:45-52</code> · <code>RequirementAcceptanceTest#정의되지_않은_결재_상태_코드를_읽으면_예외가_난다</code></td><td>보존 (enum 도입 후 현행 계약)</td></tr><tr><td>금액 경계값 정확히 일치 (10,000,000 등)</td><td>상위 등급 (이상 &gt;=)</td><td><code>AmountGrade.java:34</code></td><td>보존</td></tr><tr><td>음수 · 0 금액</td><td>C</td><td><code>AmountGrade.java:19,38</code></td><td>보존</td></tr></tbody></table>
+<h2>9. 검증 설계</h2>
+<h3>9.1 검증 기준 ↔ 테스트 매핑</h3>
+<table><thead><tr><th>검증 기준</th><th>테스트(클래스#메서드)</th><th>판단</th></tr></thead><tbody><tr><td>경계값 S / A / A / B / C</td><td><code>ApprovalServiceSafetyNetTest#금액_경계값별_등급을_돌려준다</code></td><td>충분</td></tr><tr><td>상태 9 표시명 '취소'</td><td><code>ApprovalServiceSafetyNetTest#상태_코드별_라벨을_돌려준다</code></td><td>충분</td></tr><tr><td>(F열 상세 1-b) 상태가 없으면 '알수없음'</td><td>테스트 없음</td><td>보강 필요</td></tr></tbody></table>
+<h3>9.2 빠진 테스트 제안</h3>
+<p>기존 특성화 테스트 본문은 고치지 않고, 새 테스트로만 더한다 (메서드명 한글 시나리오, 필드 · 변수는 영어).</p>
+<table><thead><tr><th>제안 테스트 메서드</th><th>준비 · 실행 · 기대</th><th>넣을 곳</th></tr></thead><tbody><tr><td><code>상태가_없는_결재의_표시명은_알수없음이다()</code></td><td><code>approval.changeStatus(null)</code> → <code>statusLabel</code> == "알수없음"</td><td>ApprovalServiceSafetyNetTest 와 같은 패키지의 새 테스트 클래스</td></tr><tr><td><code>음수_금액의_등급은_C다()</code></td><td>amount -1 → "C"</td><td>같은 곳</td></tr><tr><td><code>금액_0의_등급은_C다()</code></td><td>amount 0 → "C"</td><td>같은 곳</td></tr></tbody></table>
+<h2>10. 검토 의견 · 후속 과제</h2>
+<table><thead><tr><th>구분</th><th>내용</th></tr></thead><tbody><tr class="keep"><td>보존 대상</td><td>표시명 문자열 5개 · "알수없음", 등급 문자 S/A/B/C, 경계 '이상(&gt;=)', public 메서드 <code>statusLabel</code> · <code>amountGrade</code> 시그니처와 String 반환.</td></tr><tr class="keep"><td>보존 대상</td><td>DB 상태값은 정수 code 그대로(@Convert). 정의 밖 code 의 예외 동작.</td></tr><tr class="improve"><td>개선 대상</td><td>화면(index.html:82-83)이 상태 표시명을 JS 맵으로 따로 가진다 - 서버 enum 과 중복. 라벨을 바꿀 때 두 곳을 고쳐야 한다. 응답에 표시명을 넣는 것은 JSON 계약 변경이라 리팩토링 단계에선 하지 않고 재설계 단계에서 별도 API(예: 코드표 조회)로 검토.</td></tr><tr class="improve"><td>개선 대상</td><td><code>statusLabel</code> · <code>amountGrade</code> 를 운영 코드가 쓰지 않는다 - 화면 노출 계획이 없으면 테스트 전용 계약으로 남는다. 업무 확인 후 화면 · API 반영 여부 결정.</td></tr><tr class="improve"><td>개선 대상</td><td>"상태가 없으면 알수없음" 분기는 사실상 도달 불가(기본값 DRAFT · NOT NULL). 테스트로 고정하거나 재설계 때 정리.</td></tr></tbody></table>
+<p><b>연계 요구사항</b>: REQ-F-001~005 (상태 전이가 status 값을 만든다), REQ-F-008 (화면 상태 배지)</p>
+</main>

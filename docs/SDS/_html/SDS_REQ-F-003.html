@@ -1,0 +1,155 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>SDS REQ-F-003</title><link rel="stylesheet" href="sds.css"></head><body>
+<main class="sds" data-id="REQ-F-003">
+<div class="cover"><h1>SDS - REQ-F-003 결재자 승인 처리</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<h2>1. 개요</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>요구사항 ID</td><td>REQ-F-003</td></tr>
+<tr><td>요구사항명</td><td>결재자 승인 처리</td></tr>
+<tr><td>대 / 중 / 소분류</td><td>PORTAL / Approval / Approve</td></tr>
+<tr><td>우선순위</td><td>High</td></tr>
+<tr><td>진행현황</td><td>테스트중</td></tr>
+<tr><td>수용 여부</td><td>수용</td></tr>
+<tr><td>비고(엑셀)</td><td>소스 역추출.</td></tr>
+<tr><td>요약</td><td>action=2 로 상신(1) 문서를 승인(2)한다. 상태 · 결재자 일치 · 팀장 이상 세 조건이 모두 맞을 때만. 저장 → 기안자 메일 &#x27;[결재승인] {제목}&#x27; → 감사로그. F열 7개 문장 모두 소스와 일치한다.</td></tr>
+</tbody></table>
+<h2>2. 근거</h2>
+<p><b>SRS 없음 (엑셀 F열 · 소스만으로 분석)</b> - <code>D:\legacy-portal\docs\SRS</code> 가 존재하지 않는다. 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<div class="raw">[개요]
+지정된 결재자가 상신된 결재 문서를 승인하고 기안자에게 결과를 알린다.
+
+[상세 기능 요구사항]
+1) action=2(승인) 요청을 처리한다.
+2) 상태가 상신(1)이고, 요청자가 문서의 결재자이며, 요청자 직급이 팀장(2) 이상일 때만 승인(2)으로 바꾼다.
+3) 승인 성공 시 저장 후 기안자에게 &#x27;[결재승인] {제목}&#x27; 메일을 보낸다.
+4) 감사로그 &#x27;APPROVAL APPROVE&#x27; 를 남긴다.
+
+[입력 / 출력]
+- 입력: 결재 문서 ID, 요청자 ID, action=2
+- 출력: 상태 변경(1→2), 기안자 메일 1건, 감사로그 1줄, HTTP 200 빈 본문
+
+[제약 조건 / 비기능 요구사항]
+- 세 조건(상태 · 결재자 일치 · 권한) 중 하나라도 맞지 않으면 아무것도 하지 않는다(현재 동작 보존).
+- 권한 판정은 User.hasApprovalAuthority 한 곳에서만 한다.
+
+[검증 기준]
+- 결재자가 아닌 팀장이 승인하면 상태가 그대로다.
+- 결재자로 지정된 사원(직급 1)이 승인하면 상태가 그대로다.
+- 정상 승인 시 기안자 메일 제목이 &#x27;[결재승인] {제목}&#x27; 이다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\approval (Approval.approve · canBeDecidedBy)
+src\main\java\kr\hull\portal\user (User.hasApprovalAuthority)
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</div>
+<p>설계 제약: <code>D:\legacy-portal\CLAUDE.md</code> 의 불변 규칙 - API 엔드포인트 · HTTP 메서드, 요청/응답 JSON 구조, DB 저장 정수값, public 메서드 시그니처, 관찰 가능한 동작(조용한 무시 포함)을 바꾸지 않는다. 결함은 보존 대상과 개선 대상을 나눠 적는다.</p>
+<h2>3. 분석 결과</h2><h3>3.1 추적표 (F열 문장 ↔ 소스)</h3>
+<table><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead><tbody>
+<tr><td>상세 1</td><td>action=2(승인) 요청을 처리한다.</td><td>SRS 없음</td><td>ApprovalAction.java:16<br>ApprovalService.java:130</td><td><span class="v-ok">충족</span></td><td>APPROVE → private approve</td></tr>
+<tr><td>상세 2</td><td>상태가 상신(1)이고, 요청자가 문서의 결재자이며, 요청자 직급이 팀장(2) 이상일 때만 승인(2)으로 바꾼다.</td><td>SRS 없음</td><td>Approval.java:136-143, 189-193<br>User.java:30, 35-37</td><td><span class="v-ok">충족</span></td><td>canBeDecidedBy = SUBMITTED &amp;&amp; isApprover(id) &amp;&amp; hasApprovalAuthority()</td></tr>
+<tr><td>상세 3</td><td>승인 성공 시 저장 후 기안자에게 &#x27;[결재승인] {제목}&#x27; 메일을 보낸다.</td><td>SRS 없음</td><td>ApprovalService.java:152-153<br>ApprovalNotifier.java:50-56, 77-79</td><td><span class="v-ok">충족</span></td><td>기안자가 users 에 없으면 메일 생략(53줄)</td></tr>
+<tr><td>상세 4</td><td>감사로그 &#x27;APPROVAL APPROVE&#x27; 를 남긴다.</td><td>SRS 없음</td><td>ApprovalService.java:154<br>ApprovalAuditRecorder.java:34-36</td><td><span class="v-ok">충족</span></td><td>by = 결재자(요청자) ID</td></tr>
+<tr><td>출력</td><td>상태 변경(1→2), 기안자 메일 1건, 감사로그 1줄, HTTP 200 빈 본문</td><td>SRS 없음</td><td>ApprovalService.java:148-155<br>ApprovalController.java:44</td><td><span class="v-ok">충족</span></td><td></td></tr>
+<tr><td>제약 1</td><td>세 조건 중 하나라도 맞지 않으면 아무것도 하지 않는다.</td><td>SRS 없음</td><td>ApprovalService.java:149-151<br>ApprovalService.java:117-123</td><td><span class="v-ok">충족</span></td><td>false → 저장 · 메일 · 로그 없음</td></tr>
+<tr><td>제약 2</td><td>권한 판정은 User.hasApprovalAuthority 한 곳에서만 한다.</td><td>SRS 없음</td><td>User.java:35-37<br>Approval.java:192</td><td><span class="v-ok">충족</span></td><td>src/main 에서 hasApprovalAuthority 호출은 Approval.java:192 한 곳, 결재 경로에 getRole() 비교 없음. hasNoticePublishAuthority(User.java:40-42)는 공지용 별개 규칙</td></tr>
+</tbody></table>
+<h3>3.2 판정 요약</h3>
+<table><thead><tr><th>충족</th><th>부분 충족</th><th>미충족</th><th>불일치</th><th>확인 불가</th></tr></thead><tbody>
+<tr><td>7</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+</tbody></table>
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table><thead><tr><th>검증 기준(F열)</th><th>고정하는 테스트 (테스트클래스#메서드)</th></tr></thead><tbody>
+<tr><td>결재자가 아닌 팀장이 승인하면 상태가 그대로다.</td><td>ApprovalServiceBranchTest#지정된_결재자가_아닌_팀장이_승인하면_조용히_무시된다</td></tr>
+<tr><td>결재자로 지정된 사원(직급 1)이 승인하면 상태가 그대로다.</td><td>ApprovalServiceTest#결재자로_지정된_사원이_승인하면_조용히_무시된다<br>ApprovalServiceMailUnitTest#권한없는_사원이_승인하면_메일도_감사로그도_추가되지_않는다</td></tr>
+<tr><td>정상 승인 시 기안자 메일 제목이 &#x27;[결재승인] {제목}&#x27; 이다.</td><td>ApprovalNotificationOutputTest#승인하면_기안자에게_결재승인_메일과_감사로그가_나간다<br>ApprovalServiceMailUnitTest#승인하면_기안자에게_결재승인_메일을_보낸다</td></tr>
+</tbody></table>
+<h2>4. 구성 요소 설계</h2><p>public 시그니처는 현행 그대로 유지한다(신규 public 메서드 추가 없음).</p>
+<table><thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처</th></tr></thead><tbody>
+<tr><td>ApprovalService</td><td>승인 흐름</td><td><code>public void processApproval(Long id, Long userId, int action, String reason)</code><br><code>private void approve(Approval approval, User requester)</code></td></tr>
+<tr><td>Approval (Entity)</td><td>승인 가드 · 상태 변경</td><td><code>public boolean approve(User requester, LocalDateTime now)</code><br><code>public boolean isApprover(Long userId)</code><br><code>private boolean canBeDecidedBy(User requester)</code></td></tr>
+<tr><td>User (Entity)</td><td>결재 권한 판정 (유일한 위치)</td><td><code>public boolean hasApprovalAuthority()</code> - role ≥ 2</td></tr>
+<tr><td>ApprovalNotifier</td><td>기안자에게 [결재승인] 메일</td><td><code>public void notifyApproved(Approval approval)</code></td></tr>
+<tr><td>ApprovalAuditRecorder</td><td>APPROVAL APPROVE 로그</td><td><code>public void recordApproved(Approval approval, Long actorId)</code></td></tr>
+</tbody></table>
+<h2>5. 인터페이스 설계</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>엔드포인트</td><td><code>POST /api/approvals/{id}/process</code> (ApprovalController.java:43-47) - URL · HTTP 메서드 변경 금지, /submit · /approve 등으로 쪼개지 않는다</td></tr>
+<tr><td>경로 변수</td><td><code>id</code> (Long) - 결재 문서 ID</td></tr>
+<tr><td>요청 본문</td><td><code>ProcessRequest(Long userId, Integer action, String reason)</code> (dto/ProcessRequest.java:15)</td></tr>
+<tr><td>action 코드</td><td>1=상신 2=승인 3=반려 9=취소 (ApprovalAction.java:15-18). 그 밖의 값은 조용히 무시</td></tr>
+<tr><td>reason</td><td>생략 시 &quot;&quot; (ProcessRequest.java:18-20)</td></tr>
+<tr><td>응답</td><td>HTTP 200, 빈 본문 (컨트롤러 반환형 void) - 처리 성공 · 무시 모두 같다</td></tr>
+<tr><td>오류 동작</td><td>userId 또는 action 생략 → <code>toCommand()</code> 의 언박싱 NPE → 500 (ProcessRequest.java:26-28, 전역 예외 처리기 없음). 없는 결재 id · 없는 사용자 · 조건 불만족 → 200 빈 본문</td></tr>
+</tbody></table><table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>요청 예시</td><td>{&quot;userId&quot;:2,&quot;action&quot;:2}</td></tr>
+<tr><td>메일</td><td>수신: 기안자 email / 제목: <code>[결재승인] {제목}</code> / 본문: <code>안녕하세요 {기안자 이름}님,</code> ↵ <code>결재가 승인되었습니다.</code> ↵ <code>제목: {제목}</code></td></tr>
+<tr><td>감사로그</td><td><code>[AUDIT] [yyyy-MM-dd HH:mm:ss] APPROVAL APPROVE id={id} by={userId}</code></td></tr>
+</tbody></table>
+<h2>6. 데이터 설계</h2>
+<table><thead><tr><th>필드(Approval)</th><th>컬럼(기본 명명 전략)</th><th>Java 타입</th><th>DB 저장값 / 비고</th></tr></thead><tbody>
+<tr><td>id</td><td>id</td><td>Long</td><td>IDENTITY 자동 증가 (Approval.java:42-44)</td></tr>
+<tr><td>title / content</td><td>title / content</td><td>String</td><td>검증 없음</td></tr>
+<tr><td>type</td><td>type</td><td>int</td><td>1~4 정수 그대로 (enum 미도입 - 백로그 R07)</td></tr>
+<tr><td>status</td><td>status</td><td>ApprovalStatus</td><td><code>@Convert(ApprovalStatusConverter)</code> + NOT NULL → 정수 0/1/2/3/9 (Approval.java:51-53). @Enumerated 금지</td></tr>
+<tr><td>priority</td><td>priority</td><td>int</td><td>1~3 정수 그대로</td></tr>
+<tr><td>drafterId / approverId</td><td>drafter_id / approver_id</td><td>Long</td><td>사용자 ID (FK 제약 없음)</td></tr>
+<tr><td>rejectReason</td><td>reject_reason</td><td>String</td><td>반려 시에만 기록, 그 외 null</td></tr>
+<tr><td>amount</td><td>amount</td><td>long</td><td>금액 (기본 0)</td></tr>
+<tr><td>createdAt / updatedAt</td><td>created_at / updated_at</td><td>LocalDateTime</td><td>주입된 Clock 기준 지금 (ApprovalService.java:56)</td></tr>
+</tbody></table><table><thead><tr><th>users 컬럼</th><th>타입</th><th>값</th></tr></thead><tbody>
+<tr><td>role</td><td>int</td><td>1=사원 2=팀장 3=임원 - 정수 그대로 (UserRole enum 미도입, R07)</td></tr>
+</tbody></table><table><thead><tr><th>현재 상태</th><th>action</th><th>조건</th><th>결과 상태</th><th>부수효과</th></tr></thead><tbody>
+<tr><td>0 임시저장</td><td>1 상신</td><td>없음(요청자 검사 없음)</td><td>1</td><td>지출 · 100만원 이상이면 priority=3, 저장 → 결재자 메일 → SUBMIT 로그</td></tr>
+<tr><td>1 상신</td><td>2 승인</td><td>요청자 = 결재자 · role ≥ 2</td><td>2</td><td>저장 → 기안자 메일 → APPROVE 로그</td></tr>
+<tr><td>1 상신</td><td>3 반려</td><td>요청자 = 결재자 · role ≥ 2</td><td>3</td><td>rejectReason 기록, 저장 → 기안자 메일 → REJECT 로그</td></tr>
+<tr><td>0 · 1</td><td>9 취소</td><td>요청자 = 기안자</td><td>9</td><td>저장 → CANCEL 로그 (메일 없음)</td></tr>
+<tr><td>그 밖 조합</td><td>-</td><td>-</td><td>변화 없음</td><td>저장 · 메일 · 로그 없음, 200 빈 본문</td></tr>
+</tbody></table>
+<h2>7. 처리 흐름</h2>
+<table><thead><tr><th>순서</th><th>단계</th><th>처리 내용</th><th>소스 위치</th></tr></thead><tbody>
+<tr><td>1</td><td>조회</td><td>결재 · 요청자(User) 조회, 없으면 조용히 종료</td><td>ApprovalService.java:116-123</td></tr>
+<tr><td>2</td><td>action 해석</td><td>2 → APPROVE</td><td>ApprovalService.java:124-130</td></tr>
+<tr><td>3</td><td>가드</td><td>SUBMITTED · isApprover · hasApprovalAuthority 하나라도 거짓이면 종료</td><td>Approval.java:137-139, 189-193</td></tr>
+<tr><td>4</td><td>상태 변경</td><td>status=2, updatedAt=now</td><td>Approval.java:140-141</td></tr>
+<tr><td>5</td><td>저장</td><td>save</td><td>ApprovalService.java:152</td></tr>
+<tr><td>6</td><td>메일</td><td>기안자에게 [결재승인] (수신자 없으면 생략)</td><td>ApprovalService.java:153</td></tr>
+<tr><td>7</td><td>감사로그</td><td>APPROVAL APPROVE</td><td>ApprovalService.java:154</td></tr>
+</tbody></table>
+<h2>8. 예외 · 경계 처리</h2>
+<table><thead><tr><th>경우</th><th>현재 동작</th><th>소스 위치</th><th>레거시 보존 여부</th></tr></thead><tbody>
+<tr><td>결재자가 아닌 팀장 · 임원</td><td>무변화, 200</td><td>Approval.java:191</td><td>보존</td></tr>
+<tr><td>결재자로 지정된 사원(role 1)</td><td>무변화, 200</td><td>User.java:35-37</td><td>보존</td></tr>
+<tr><td>임시저장 · 승인 · 반려 · 취소 상태</td><td>무변화</td><td>Approval.java:190</td><td>보존</td></tr>
+<tr><td>결재자 미지정(null) 문서</td><td>isApprover false → 무변화</td><td>Approval.java:170-172</td><td>보존</td></tr>
+<tr><td>기안자가 users 에 없음</td><td>승인 · 로그는 되고 메일만 생략</td><td>ApprovalNotifier.java:52-54</td><td>보존</td></tr>
+<tr><td>기안자 ID null 문서 승인</td><td>status 2 저장 후 findById(null) 예외 (서비스 직접 호출 시)</td><td>ApprovalNotifier.java:68-70</td><td>보존 (API 경로로는 도달 불가)</td></tr>
+</tbody></table>
+<h2>9. 검증 설계</h2><h3>9.1 검증 기준 ↔ 테스트 매핑</h3>
+<table><thead><tr><th>검증 기준 / 동작</th><th>테스트</th><th>상태</th></tr></thead><tbody>
+<tr><td>결재자 아닌 팀장 → 그대로</td><td>ApprovalServiceBranchTest#지정된_결재자가_아닌_팀장이_승인하면_조용히_무시된다</td><td>있음</td></tr>
+<tr><td>결재자 사원 → 그대로</td><td>ApprovalServiceTest#결재자로_지정된_사원이_승인하면_조용히_무시된다</td><td>있음</td></tr>
+<tr><td>메일 제목 [결재승인]</td><td>ApprovalNotificationOutputTest#승인하면_기안자에게_결재승인_메일과_감사로그가_나간다</td><td>있음</td></tr>
+<tr><td>정상 승인 (팀장 · 임원)</td><td>ApprovalServiceTest#기안자가_상신하고_팀장이_승인하면_승인된다 · ApprovalProcessCharacterizationTest#결재자로_지정된_임원이_승인하면_승인된다</td><td>있음</td></tr>
+<tr><td>무시 시 메일 · 로그 없음</td><td>ApprovalServiceMailUnitTest#권한없는_사원이_승인하면_메일도_감사로그도_추가되지_않는다 · ApprovalNotificationOutputTest#무시되는_처리는_메일도_감사로그도_남기지_않는다</td><td>있음</td></tr>
+<tr><td>재승인 무시</td><td>ApprovalServiceTest#이미_승인된_결재를_다시_승인하면_무시되고_승인상태가_유지된다</td><td>있음</td></tr>
+<tr><td>결재자 아닌 팀장 승인 시 메일 · 로그 없음</td><td>테스트 없음 (상태만 검증)</td><td>제안</td></tr>
+</tbody></table>
+<h3>9.2 빠진 테스트 제안</h3><p>특성화 테스트 본문은 수정하지 않고 새 테스트로 추가한다. 메서드명은 한글 시나리오, 필드 · 변수는 영어(camelCase).</p>
+<table><thead><tr><th>제안 테스트 메서드</th><th>배치 클래스</th><th>고정할 내용 (변수명 예)</th></tr></thead><tbody>
+<tr><td>결재자가_아닌_팀장이_승인하면_메일도_감사로그도_남지_않는다()</td><td>ApprovalServiceMailUnitTest 옆 새 클래스 (FakeMailSender · AuditLogger mock)</td><td><code>otherTeamLeader</code> 로 승인 → <code>fakeMailSender.getSentMails()</code> 1통(상신분) 유지</td></tr>
+</tbody></table>
+<h2>10. 검토 의견 · 후속 과제</h2><h3>10.1 보존 대상 (리팩토링 단계에서 바꾸지 않음)</h3>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr class="keep"><td>조용한 무시</td><td>조건 불만족 · 없는 결재 · 없는 사용자 · 정의되지 않은 action 은 예외 없이 200 빈 본문 (ApprovalService.java:117-127)</td></tr><tr class="keep"><td>DB 저장값</td><td>status 0/1/2/3/9 정수 (ApprovalStatusConverter.java:16-24)</td></tr><tr class="keep"><td>권한 기준</td><td>팀장(2) 이상 - role ≥ 2</td></tr><tr class="keep"><td>메일 · 로그 문자열</td><td><code>[결재승인] {제목}</code> / <code>결재가 승인되었습니다.</code> / <code>APPROVAL APPROVE</code></td></tr></tbody></table>
+<h3>10.2 개선 대상 (재설계 단계 · 별도 요구사항)</h3>
+<table><thead><tr><th>항목</th><th>설계안</th><th>연계</th></tr></thead><tbody><tr class="improve"><td>권한 없는 승인을 조용히 무시</td><td>403 등 오류 응답으로 알림 - 동작 변경이라 재설계 단계</td><td>REQ-NF-002</td></tr><tr class="improve"><td>role 정수</td><td>UserRole enum + Converter (DB 1/2/3 그대로), hasApprovalAuthority 내부만 변경</td><td>백로그 R07</td></tr><tr class="improve"><td>userId 를 본문에서 신뢰</td><td>로그인 사용자를 요청자로</td><td>REQ-SE-002</td></tr></tbody></table>
+<h3>10.3 연계 요구사항</h3>
+<table><thead><tr><th>요구사항</th><th>경계</th></tr></thead><tbody>
+<tr><td>REQ-F-002 상신</td><td>승인 대상(상태 1) 생성</td></tr>
+<tr><td>REQ-F-004 반려</td><td>같은 가드(canBeDecidedBy) 공유</td></tr>
+<tr><td>REQ-SE-002</td><td>권한 판정 규칙은 User 메서드 한 곳 - 이 요구사항 제약 2 와 같은 원칙</td></tr>
+</tbody></table>
+</main></body></html>

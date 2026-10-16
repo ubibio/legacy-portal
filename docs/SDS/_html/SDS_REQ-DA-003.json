@@ -1,0 +1,10 @@
+{
+  "id": "REQ-DA-003",
+  "title": "나머지 코드값 enum 전환과 범위 검증",
+  "ok": 2,
+  "partial": 0,
+  "missing": 5,
+  "mismatch": 0,
+  "unknown": 1,
+  "notes": "미충족 5: enum·Converter 미구현(R07 보류), 엔티티 필드 int, 범위 밖 코드 저장됨, 공지 라벨 enum 아님. 확인 불가 1: REQ-NF-003 동시 적용은 계획 사항"
+}

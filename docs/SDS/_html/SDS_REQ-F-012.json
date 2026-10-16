@@ -1,0 +1,10 @@
+{
+  "id": "REQ-F-012",
+  "title": "일정 확정",
+  "ok": 6,
+  "partial": 1,
+  "missing": 0,
+  "mismatch": 0,
+  "unknown": 0,
+  "notes": "부분: 소유자 null 일정 확정 시 '조용히 무시'가 아니라 NullPointerException (레거시 결함, 특성화 테스트 고정)"
+}

@@ -1,0 +1,182 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SDS - REQ-SE-002</title>
+<link rel="stylesheet" href="sds.css">
+<div class="cover"><h1>SDS - REQ-SE-002 요청자 신원 확인 및 상신 권한 검사</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<main class="sds" data-id="REQ-SE-002">
+
+<h2>1. 개요</h2>
+<table>
+<tr><th style="width:22%">요구사항 ID</th><td>REQ-SE-002</td></tr>
+<tr><th>요구사항명</th><td>요청자 신원 확인 및 상신 권한 검사</td></tr>
+<tr><th>대 / 중 / 소분류</th><td>PORTAL / Security / Identity</td></tr>
+<tr><th>우선순위</th><td>High</td></tr>
+<tr><th>진행현황</th><td>기획중 (비고: 현재 인증 없음 · 상신 기안자 검사 없음(특성화 테스트에 결함 후보로 표시))</td></tr>
+<tr><th>요약</th><td>현재 서버는 요청 본문의 <code>userId</code> · <code>drafterId</code> 를 그대로 요청자로 믿고, 화면은 <code>localStorage</code> 에 고른 사용자를 저장할 뿐 인증이 없다. 상신은 기안자가 아니어도 된다.
+로그인(세션)으로 확인한 사용자를 서버가 요청자로 쓰고, 상신을 기안자 본인으로 제한한다. API 계약(userId 를 본문으로 받음)이 바뀌므로 <b>재설계 단계</b>이며, 이 문서에서 단계적 이행 방식을 정한다. 권한 판정 한 곳(User 메서드)만 충족되어 있다.</td></tr>
+</table>
+
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<div class="raw">[개요]
+요청 본문의 userId 를 그대로 믿는 구조와, 아무나 남의 문서를 상신할 수 있는 동작을 고친다.
+
+[상세 기능 요구사항]
+1) 로그인으로 확인한 사용자를 서버가 요청자로 쓰고, 요청 본문의 userId 로 다른 사람을 대신하지 못하게 한다.
+2) 상신은 기안자 본인만 할 수 있게 한다.
+3) 기안 생성 시 drafterId 도 로그인 사용자로 정한다.
+4) 화면의 사용자 선택(localStorage 저장)을 실제 로그인으로 바꾼다.
+
+[입력 / 출력]
+- 입력: 로그인 정보, 처리 요청
+- 출력: 인증된 요청자, 권한 검사 결과
+
+[제약 조건 / 비기능 요구사항]
+- 이 변경은 API 계약(userId 를 본문으로 받음)을 바꾸므로 설계 단계에서 이행 방식을 정한다.
+- 권한 판정 규칙(팀장 이상)은 User 메서드 한 곳에 둔다.
+
+[검증 기준]
+- 다른 사용자 ID 를 본문에 넣어도 로그인 사용자로 처리된다.
+- 기안자가 아닌 사용자의 상신이 거절된다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\approval
+src\main\java\kr\hull\portal\user
+src\main\resources\static\index.html
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</div>
+
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표</h3>
+<table>
+<thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead>
+<tr><td>상세 1</td><td>로그인으로 확인한 사용자를 서버가 요청자로 쓰고, 요청 본문의 userId 로 다른 사람을 대신하지 못하게 한다.</td><td>SRS 없음</td><td><code>approval/ApprovalController.java:43-47</code>, <code>approval/dto/ProcessRequest.java:15, 27</code>, <code>ApprovalService.java:115, 120</code>, <code>pom.xml</code>(security 의존성 없음)</td><td class="v-no">미충족</td><td>인증 수단이 없고 본문 <code>userId</code> 를 그대로 요청자로 쓴다. 조회 API <code>/drafts/{userId}</code> · <code>/inbox/{userId}</code> 도 경로의 userId 를 그대로 신뢰한다(<code>ApprovalController.java:49-57</code>).</td></tr>
+<tr><td>상세 2</td><td>상신은 기안자 본인만 할 수 있게 한다.</td><td>SRS 없음</td><td><code>approval/Approval.java:118-133</code>, <code>ApprovalService.java:138-146</code></td><td class="v-no">미충족</td><td><code>submit(now)</code> 는 상태만 본다. 주석 "[보존] 요청자가 기안자인지는 보지 않는다 - 재설계 단계 결함 후보". 테스트가 현재 동작을 고정: <code>ApprovalServiceSafetyNetTest#기안자가_아닌_사람도_상신할_수_있다</code>.</td></tr>
+<tr><td>상세 3</td><td>기안 생성 시 drafterId 도 로그인 사용자로 정한다.</td><td>SRS 없음</td><td><code>approval/dto/CreateApprovalRequest.java:23, 48</code>, <code>static/index.html:115</code></td><td class="v-no">미충족</td><td>본문 <code>drafterId</code> 를 그대로 저장. 화면이 <code>drafterId: me.id</code>(localStorage 값)를 보낸다.</td></tr>
+<tr><td>상세 4</td><td>화면의 사용자 선택(localStorage 저장)을 실제 로그인으로 바꾼다.</td><td>SRS 없음</td><td><code>static/index.html:90-104</code>, <code>user/UserController.java:9-25</code></td><td class="v-no">미충족</td><td>사용자 목록에서 고르면 <code>localStorage.setItem('me', ...)</code>. 비밀번호 · 세션 없음. <code>User</code> 엔티티에 자격 증명 컬럼 없음(<code>User.java:21-28</code>).</td></tr>
+<tr><td>입력</td><td>로그인 정보, 처리 요청</td><td>SRS 없음</td><td><code>ProcessRequest.java:15</code></td><td class="v-part">부분 충족</td><td>처리 요청은 있으나 로그인 정보(자격 증명 · 세션)가 없다.</td></tr>
+<tr><td>출력</td><td>인증된 요청자, 권한 검사 결과</td><td>SRS 없음</td><td><code>Approval.java:136-167, 189-193</code></td><td class="v-part">부분 충족</td><td>권한 검사 결과(boolean)는 있으나 인증된 요청자는 없다.</td></tr>
+<tr><td>제약 1</td><td>이 변경은 API 계약(userId 를 본문으로 받음)을 바꾸므로 설계 단계에서 이행 방식을 정한다.</td><td>SRS 없음</td><td>해당 결정 문서 · 코드 없음</td><td class="v-no">미충족</td><td>이 SDS 5.3절에서 단계적 이행안을 제시한다(확정은 사용자 결정).</td></tr>
+<tr><td>제약 2</td><td>권한 판정 규칙(팀장 이상)은 User 메서드 한 곳에 둔다.</td><td>SRS 없음</td><td><code>user/User.java:30, 34-37</code>, <code>Approval.java:192</code></td><td class="v-ok">충족</td><td>결재 권한은 <code>User.hasApprovalAuthority()</code> 한 곳. 공지 게시 권한 <code>hasNoticePublishAuthority()</code>(<code>User.java:40-42</code>)는 의도적으로 분리된 별개 규칙.</td></tr>
+</table>
+<h3>3.2 판정 요약</h3>
+<p>충족 1 / 부분 충족 2 / 미충족 6 / 불일치 0 / 확인 불가 0 (총 9항목)</p>
+
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table>
+<thead><tr><th>검증 기준(F열)</th><th>테스트</th><th>현재 상태</th></tr></thead>
+<tr><td>다른 사용자 ID 를 본문에 넣어도 로그인 사용자로 처리된다.</td><td>테스트 없음</td><td class="v-no">인증 없음 - 본문 userId 로 처리됨.</td></tr>
+<tr><td>기안자가 아닌 사용자의 상신이 거절된다.</td><td>테스트 없음</td><td class="v-no">반대 동작이 고정됨: <code>ApprovalServiceSafetyNetTest#기안자가_아닌_사람도_상신할_수_있다</code></td></tr>
+</table>
+
+<h2>4. 구성 요소 설계</h2>
+<table>
+<thead><tr><th>구성 요소</th><th>책임</th><th>설계</th></tr></thead>
+<tr><td><code>pom.xml</code></td><td>인증 기반</td><td><code>spring-boot-starter-security</code> 추가(세션 기반, 비밀번호 BCrypt). 대안: 의존성 없이 <code>HttpSession</code> + 인터셉터(교육용 경량) - 10장 결정 사항</td></tr>
+<tr><td><code>user.User</code> (변경)</td><td>자격 증명 보유</td><td>컬럼 추가 <code>passwordHash</code>(VARCHAR). getter 이름은 JSON 에 나가지 않도록 <code>passwordHash()</code>(get 접두 없음) 또는 <code>@JsonIgnore</code> - <code>/api/users</code> 응답 5필드 유지. <code>hasApprovalAuthority()</code> 그대로.</td></tr>
+<tr><td><code>user.AuthController</code> (신규)</td><td>로그인 · 로그아웃 · 현재 사용자</td><td><code>POST /api/auth/login</code>, <code>POST /api/auth/logout</code>, <code>GET /api/auth/me</code></td></tr>
+<tr><td><code>user.LoginUser</code> (신규 애너테이션) + <code>LoginUserArgumentResolver</code></td><td>컨트롤러에 인증된 사용자 id 주입</td><td><code>@LoginUser Long requesterId</code> - 세션(또는 SecurityContext)에서 꺼냄</td></tr>
+<tr><td><code>ApprovalController</code> (변경)</td><td>요청자 결정</td><td><code>create(@LoginUser Long requesterId, @RequestBody CreateApprovalRequest request)</code>: <code>drafterId</code> 를 requesterId 로 덮어 명령 생성. <code>process(@PathVariable Long id, @LoginUser Long requesterId, @RequestBody ProcessRequest request)</code>: 본문 userId 무시. URL · HTTP 메서드 · 성공 응답 그대로</td></tr>
+<tr><td><code>CreateApprovalRequest</code> · <code>ProcessRequest</code> (변경)</td><td>이행 호환</td><td>필드 <code>drafterId</code> · <code>userId</code> 는 <b>남겨 둔다</b>(구 클라이언트 JSON 호환). 신규 <code>toCommand(Long requesterId)</code> 가 로그인 사용자로 채운다. 기존 <code>toCommand()</code> 는 이행 1단계 동안 유지</td></tr>
+<tr><td><code>Approval</code> (변경)</td><td>상신 권한</td><td>신규 <code>boolean submit(Long requesterId, LocalDateTime now)</code> = 상태 DRAFT + <code>isDraftedBy(requesterId)</code>. 기존 <code>submit(LocalDateTime)</code> 는 2단계에서 제거 여부 결정</td></tr>
+<tr><td><code>ApprovalService</code> (변경)</td><td>상신 위임 변경</td><td>private <code>submit(Approval, Long)</code> 이 <code>approval.submit(requesterId, now)</code> 호출. public <code>processApproval(Long, Long, int, String)</code> · <code>(Long, ProcessApprovalCommand)</code> 시그니처 유지(userId 의미가 "인증된 요청자"로 바뀜)</td></tr>
+<tr><td><code>DataSeeder</code> (변경)</td><td>교육용 초기 계정</td><td>4명에 초기 비밀번호 해시 부여(평문 비밀번호는 소스에 두지 않고 설정값 <code>portal.seed.initial-password</code> - REQ-SE-001 과 같은 원칙)</td></tr>
+</table>
+
+<h2>5. 인터페이스 설계</h2>
+<h3>5.1 신규 엔드포인트</h3>
+<table>
+<thead><tr><th>엔드포인트</th><th>요청</th><th>응답</th><th>오류</th></tr></thead>
+<tr><td><code>POST /api/auth/login</code></td><td><code>{"userId": Long, "password": String}</code></td><td>200 <code>{"id","name","email","role","dept"}</code> (기존 User JSON 5필드) + 세션 쿠키</td><td>401 <code>{"code":"LOGIN_FAILED","message":"..."}</code></td></tr>
+<tr><td><code>POST /api/auth/logout</code></td><td>-</td><td>200 빈 본문</td><td>-</td></tr>
+<tr><td><code>GET /api/auth/me</code></td><td>-</td><td>200 User 5필드</td><td>401 미로그인</td></tr>
+</table>
+<h3>5.2 기존 엔드포인트 (URL · 메서드 · 성공 응답 유지)</h3>
+<table>
+<thead><tr><th>엔드포인트</th><th>현재</th><th>설계 후</th></tr></thead>
+<tr><td><code>POST /api/approvals</code></td><td>본문 drafterId 사용</td><td>본문 drafterId 무시, 로그인 사용자로 저장. 응답 12필드 동일(drafterId = 로그인 사용자)</td></tr>
+<tr><td><code>POST /api/approvals/{id}/process</code></td><td>본문 userId 사용, 비기안자 상신 허용</td><td>로그인 사용자로 처리. 비기안자 상신 → 403 <code>NOT_DRAFTER</code>(REQ-NF-002 형식). 미로그인 → 401</td></tr>
+<tr><td><code>GET /api/approvals/drafts/{userId}</code>, <code>/inbox/{userId}</code></td><td>경로 userId 신뢰</td><td>F열 범위 밖 - 후속 과제(경로 userId ≠ 로그인 사용자면 403 권장)</td></tr>
+<tr><td><code>GET /api/users</code></td><td>5필드</td><td>그대로(비밀번호 해시 비노출). 로그인 화면용으로 공개 유지 여부는 결정 사항</td></tr>
+</table>
+<h3>5.3 이행 방식 (F열 제약 1 - API 계약 변경)</h3>
+<table>
+<thead><tr><th>단계</th><th>서버</th><th>화면</th><th>호환</th></tr></thead>
+<tr><td>1 병행</td><td>로그인 API 추가. 세션이 있으면 로그인 사용자 우선, 없으면 본문 userId(레거시). 설정 <code>portal.auth.enforced=false</code></td><td>로그인 폼으로 교체, localStorage 에는 표시용 이름만</td><td>구 클라이언트 · 기존 특성화 테스트 그대로 동작</td></tr>
+<tr><td>2 강제</td><td><code>portal.auth.enforced=true</code>: 세션 없으면 401, 본문 userId · drafterId 는 무시(필드는 받아도 무해)</td><td>-</td><td>요청 JSON 형식은 그대로(필드 무시만)</td></tr>
+<tr><td>3 정리</td><td>DTO 에서 userId · drafterId 제거 여부를 별도 결정(API 계약 변경 공지 후)</td><td>본문에서 userId 제거</td><td>계약 변경</td></tr>
+</table>
+<pre>// 예: 다른 사용자 id 를 본문에 넣어도 로그인 사용자로 처리
+POST /api/approvals/15/process   (세션: 2 박팀장)
+{"userId": 3, "action": 2, "reason": ""}
+→ 요청자 = 2 (본문 3 무시), 감사로그 "APPROVAL APPROVE id=15 by=2"</pre>
+
+<h2>6. 데이터 설계</h2>
+<table>
+<thead><tr><th>테이블</th><th>컬럼</th><th>변경</th></tr></thead>
+<tr><td><code>users</code></td><td><code>password_hash VARCHAR(100)</code></td><td>추가(BCrypt). 기존 컬럼 id · name · email · role(1/2/3 정수) · dept 그대로</td></tr>
+<tr><td><code>approval</code></td><td>-</td><td>변경 없음. status 0/1/2/3/9 정수 그대로(<code>ApprovalStatusConverter</code>)</td></tr>
+</table>
+<h3>6.1 상신 전이 (변경점)</h3>
+<table>
+<thead><tr><th>현재 상태</th><th>요청자</th><th>현재 결과</th><th>설계 후</th></tr></thead>
+<tr><td>임시저장 0</td><td>기안자</td><td>→ 상신 1</td><td>→ 상신 1</td></tr>
+<tr><td>임시저장 0</td><td>기안자 아님</td><td>→ 상신 1</td><td>상태 0 유지, 403 NOT_DRAFTER</td></tr>
+<tr><td>그 외</td><td>누구든</td><td>무시</td><td>409(REQ-NF-002)</td></tr>
+</table>
+
+<h2>7. 처리 흐름</h2>
+<table>
+<thead><tr><th>단계</th><th>처리</th></tr></thead>
+<tr><td>1 인증</td><td>세션 → <code>@LoginUser</code> 요청자 id (없으면 1단계: 본문 userId / 2단계: 401)</td></tr>
+<tr><td>2 조회 가드</td><td>결재 · 요청자 조회(없음 → REQ-NF-002 404)</td></tr>
+<tr><td>3 권한 가드</td><td>상신: 기안자 본인 / 승인 · 반려: 지정 결재자 + <code>User.hasApprovalAuthority()</code> / 취소: 기안자 본인</td></tr>
+<tr><td>4 상태 변경 → 저장 → 메일 → 감사로그</td><td>기존 순서 그대로, 감사로그 <code>by=</code> 는 인증된 요청자</td></tr>
+</table>
+
+<h2>8. 예외 · 경계 처리</h2>
+<table>
+<thead><tr><th>경우</th><th>현재</th><th>설계</th><th>레거시 보존 여부</th></tr></thead>
+<tr><td>본문 userId ≠ 로그인 사용자</td><td>본문 userId 로 처리</td><td>로그인 사용자로 처리(본문 무시)</td><td>변경(재설계)</td></tr>
+<tr><td>비기안자 상신</td><td>상신됨</td><td>403</td><td>변경(재설계)</td></tr>
+<tr><td>미로그인 요청</td><td>해당 없음</td><td>1단계 레거시 동작 / 2단계 401</td><td>1단계 보존</td></tr>
+<tr><td>기안자 미지정(null) 문서 상신</td><td>상신됨</td><td>403(<code>isDraftedBy</code> 가 null 이면 false)</td><td>변경(재설계)</td></tr>
+<tr><td>승인 · 반려 권한(팀장 이상)</td><td><code>User.hasApprovalAuthority()</code></td><td>그대로</td><td>보존</td></tr>
+<tr><td>취소의 기안자 검사</td><td>있음(<code>Approval.java:161</code>)</td><td>그대로, 요청자만 인증 사용자로</td><td>보존</td></tr>
+</table>
+
+<h2>9. 검증 설계</h2>
+<table>
+<thead><tr><th>검증 기준</th><th>테스트(신규 제안)</th></tr></thead>
+<tr><td>다른 사용자 ID 를 본문에 넣어도 로그인 사용자로 처리된다.</td><td><code>AuthenticatedRequesterTest#본문에_다른_사용자_id를_넣어도_로그인_사용자로_처리된다</code></td></tr>
+<tr><td>기안자가 아닌 사용자의 상신이 거절된다.</td><td><code>AuthenticatedRequesterTest#기안자가_아닌_사용자의_상신은_403으로_거절된다</code></td></tr>
+</table>
+<pre>@Test void 본문에_다른_사용자_id를_넣어도_로그인_사용자로_처리된다()
+@Test void 기안자가_아닌_사용자의_상신은_403으로_거절된다()
+@Test void 기안_생성의_drafterId는_로그인_사용자로_정해진다()
+@Test void 로그인하지_않고_처리하면_401이_온다()          // 2단계
+@Test void 비밀번호가_틀리면_로그인이_실패한다()
+@Test void 사용자_목록_응답에_비밀번호_해시가_나가지_않는다()
+
+// 예: 변수는 영어
+MockHttpSession teamLeaderSession = login(TEAM_LEADER_ID, initialPassword);
+mockMvc.perform(post("/api/approvals/" + approvalId + "/process").session(teamLeaderSession)
+        .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":3,\"action\":2}"))
+    .andExpect(status().isOk());
+assertThat(output.getOut()).contains("APPROVAL APPROVE id=" + approvalId + " by=" + TEAM_LEADER_ID);</pre>
+<p>기대값이 바뀌는 기존 특성화 테스트: <code>ApprovalServiceSafetyNetTest#기안자가_아닌_사람도_상신할_수_있다</code>(결함 후보로 표시된 테스트). 2단계(강제)에서는 세션 없이 MockMvc 를 호출하는 <code>ApprovalControllerTest</code> · <code>RequirementAcceptanceTest</code> 도 영향 - 별도 커밋 + diff 제시 + 사용자 승인 후 변경(CLAUDE.md 특성화 테스트 규칙).</p>
+
+<h2>10. 검토 의견 · 후속 과제</h2>
+<table>
+<thead><tr><th>구분</th><th>내용</th></tr></thead>
+<tr class="keep"><td>보존 대상</td><td>URL · HTTP 메서드, 요청 JSON 필드 구성(이행 1~2단계 동안 userId · drafterId 필드 유지), 성공 응답 형식, DB 저장값(status · role 정수), 서비스 public 시그니처, 권한 판정 규칙(팀장 이상) 위치, 저장 → 메일 → 감사로그 순서.</td></tr>
+<tr class="improve"><td>개선 대상</td><td>요청 본문 신원 신뢰 · 비기안자 상신 허용 · localStorage 가짜 로그인. <b>관찰 가능 동작과 API 계약을 바꾸므로 리팩토링이 아닌 재설계 단계</b>에서 5.3절 단계로 진행.</td></tr>
+<tr class="improve"><td>결정 필요</td><td>① Spring Security 도입 vs 경량 세션 인터셉터, ② 2단계 강제 시점, ③ <code>/api/users</code> 공개 범위, ④ 3단계에서 DTO 필드 제거 여부.</td></tr>
+<tr class="improve"><td>후속 과제</td><td><code>/drafts/{userId}</code> · <code>/inbox/{userId}</code> 의 타인 조회 차단(F열 범위 밖, 같은 신원 문제).</td></tr>
+<tr><td>연계 요구사항</td><td>REQ-NF-002(403 · 401 오류 형식), REQ-NF-003(drafterId · userId 필수 검증은 이행 1단계까지만 의미).</td></tr>
+</table>
+</main>

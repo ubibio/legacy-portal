@@ -1,0 +1,10 @@
+{
+  "id": "REQ-NF-004",
+  "title": "시각 주입으로 시간 고정 테스트 지원",
+  "ok": 6,
+  "partial": 1,
+  "missing": 0,
+  "mismatch": 0,
+  "unknown": 0,
+  "notes": "부분: ScheduleService 는 Clock 미주입(현재 시각 사용처 없음). 변경분 미커밋"
+}

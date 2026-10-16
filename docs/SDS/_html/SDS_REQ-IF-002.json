@@ -1,0 +1,10 @@
+{
+  "id": "REQ-IF-002",
+  "title": "감사로그 기록 인터페이스",
+  "ok": 7,
+  "partial": 1,
+  "missing": 0,
+  "mismatch": 0,
+  "unknown": 0,
+  "notes": "부분: 형식 조립 한 곳 제약 - 미사용 레거시 FileAuditLogger 가 '[AUDIT] ' 접두를 따로 조립"
+}

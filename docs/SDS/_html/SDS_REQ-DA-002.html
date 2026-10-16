@@ -1,0 +1,82 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="sds.css">
+<title>SDS - REQ-DA-002</title>
+<main class="sds" data-id="REQ-DA-002">
+<div class="cover"><h1>SDS - REQ-DA-002 실행 DB 자동 선택(MariaDB · H2)</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<h2>1. 개요</h2>
+<table><colgroup><col style="width:20%"><col style="width:80%"></colgroup><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td>요구사항 ID</td><td>REQ-DA-002</td></tr><tr><td>요구사항명</td><td>실행 DB 자동 선택(MariaDB · H2)</td></tr><tr><td>대 / 중 / 소분류</td><td>PORTAL / Data / DataSource</td></tr><tr><td>우선순위</td><td>Medium</td></tr><tr><td>진행현황</td><td>테스트중</td></tr><tr><td>수용여부 · 요청자</td><td>수용 · 포털팀 (미정)</td></tr><tr><td>엑셀 비고</td><td>소스 역추출.</td></tr><tr><td>요약</td><td>시작 시 MariaDB 접속을 확인해 되면 MariaDB, 안 되면 H2 인메모리를 데이터소스로 쓴다(DataSourceConfig). REQ-SE-001 적용으로 접속 정보가 설정 키 · 환경변수로 옮겨졌고, 비밀번호가 비어 있으면 접속을 시도하지 않고 바로 H2 로 간다. H2 선택 시 시작 로그가 F열의 &#x27;&gt;&gt; DB = ...&#x27; 형식이 아니라 &#x27;&gt;&gt; MariaDB 연결 불가 → H2 인메모리로 실행 ...&#x27; 이라 문장과 다르다. 또 테스트의 H2 고정은 PORTAL_DATASOURCE_* 환경변수가 없을 때만 보장된다.</td></tr></tbody></table>
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). docs\SRS 폴더가 존재하지 않아 아래 F열 상세내용 원문과 D:\legacy-portal 소스(src\main · src\test) · CLAUDE.md 불변 규칙만을 근거로 삼는다.</p>
+<div class="raw">[개요]
+설치 환경에 따라 MariaDB 가 있으면 MariaDB 를, 없으면 H2 인메모리 DB 를 자동으로 써서 별도 설정 없이 실행된다.
+
+[상세 기능 요구사항]
+1) 시작 시 localhost:3306/portal 에 2초 제한으로 접속을 시도한다.
+2) 접속되면 MariaDB 를, 안 되면 H2 인메모리(jdbc:h2:mem:portal, MODE=LEGACY)를 데이터소스로 쓴다.
+3) 어느 DB 를 골랐는지 시작 로그 &#x27;&gt;&gt; DB = ...&#x27; 로 알린다.
+4) H2 사용 시 /h2-console 로 데이터를 조회할 수 있다.
+5) 스키마는 JPA ddl-auto=create-drop 으로 만든다.
+
+[입력 / 출력]
+- 입력: 없음(시작 시 접속 시도)
+- 출력: 데이터소스, 시작 로그 1줄
+
+[제약 조건 / 비기능 요구사항]
+- 테스트는 항상 H2 인메모리로 돈다.
+- create-drop 이므로 재시작하면 데이터가 지워진다(교육용 설정).
+
+[검증 기준]
+- MariaDB 를 끈 상태로 실행하면 H2 로 뜨고 로그에 H2 가 찍힌다.
+- H2 상태에서 /h2-console 에 접속된다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\DataSourceConfig.java
+src\main\resources\application.properties
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : database-expert</div>
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표 (F열 문장 ↔ 소스)</h3>
+<table><colgroup><col style="width:8%"><col style="width:26%"><col style="width:7%"><col style="width:29%"><col style="width:9%"><col style="width:21%"></colgroup><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead><tbody><tr><td>기능 1</td><td>시작 시 localhost:3306/portal 에 2초 제한으로 접속을 시도한다.</td><td>SRS 없음</td><td>application.properties:8 portal.datasource.url=jdbc:mariadb://localhost:3306/portal, DataSourceConfig.java:34 CONNECTION_CHECK_TIMEOUT_SECONDS = 2, :77-85 DriverManager.setLoginTimeout(2) + getConnection, :51 isMariaDbConfigured() &amp;&amp; isMariaDbReachable(), :72-74 URL · 비밀번호 둘 다 있어야 시도</td><td><span class="v-part">부분 충족</span></td><td>REQ-SE-001 이후 비밀번호(application.properties:10 빈 값)가 없으면 접속 시도 자체를 하지 않음 → 기본 실행에서는 &#x27;시도&#x27; 없이 H2. 2초 제한의 실제 소요시간은 테스트 없음</td></tr><tr><td>기능 2</td><td>접속되면 MariaDB 를, 안 되면 H2 인메모리(jdbc:h2:mem:portal, MODE=LEGACY)를 데이터소스로 쓴다.</td><td>SRS 없음</td><td>DataSourceConfig.java:52-59 MariaDB(HikariDataSource, org.mariadb.jdbc.Driver), :62-68 H2, :33 H2_URL = &quot;jdbc:h2:mem:portal;MODE=LEGACY;DB_CLOSE_DELAY=-1&quot;</td><td><span class="v-ok">충족</span></td><td>DB_CLOSE_DELAY=-1 이 추가로 붙어 있음(연결이 모두 닫혀도 DB 유지)</td></tr><tr><td>기능 3</td><td>어느 DB 를 골랐는지 시작 로그 &#x27;&gt;&gt; DB = ...&#x27; 로 알린다.</td><td>SRS 없음</td><td>DataSourceConfig.java:52 &quot;&gt;&gt; DB = MariaDB (&quot; + mariaDbUrl + &quot;)&quot;, :61 &quot;&gt;&gt; MariaDB 연결 불가 → H2 인메모리로 실행 (조회: http://localhost:8080/h2-console)&quot;</td><td><span class="v-diff">불일치</span></td><td>MariaDB 는 &#x27;&gt;&gt; DB = &#x27; 형식, H2 는 다른 문구. 로그 문구는 관찰 가능한 출력이므로 코드가 아니라 F열 문장을 실제 문구로 정정하는 것을 권장</td></tr><tr><td>기능 4</td><td>H2 사용 시 /h2-console 로 데이터를 조회할 수 있다.</td><td>SRS 없음</td><td>application.properties:18 spring.h2.console.enabled=true, static/index.html:77 /h2-console 링크</td><td><span class="v-ok">충족</span></td><td>RequirementUpdateAcceptanceTest 로 2xx 확인</td></tr><tr><td>기능 5</td><td>스키마는 JPA ddl-auto=create-drop 으로 만든다.</td><td>SRS 없음</td><td>application.properties:12 spring.jpa.hibernate.ddl-auto=create-drop (테스트: src\test\resources\application.properties:8 동일)</td><td><span class="v-ok">충족</span></td><td></td></tr><tr><td>입력</td><td>입력: 없음(시작 시 접속 시도)</td><td>SRS 없음</td><td>DataSourceConfig.java:41-47 portal.datasource.url · username · password 설정 키 주입 (환경변수 PORTAL_DATASOURCE_* 우선, application.properties:5)</td><td><span class="v-part">부분 충족</span></td><td>REQ-SE-001 로 설정 키 · 환경변수가 입력으로 추가됨. 설정 없으면 &#x27;입력 없음&#x27;과 같게 H2</td></tr><tr><td>출력</td><td>출력: 데이터소스, 시작 로그 1줄</td><td>SRS 없음</td><td>DataSourceConfig.java:49-69 DataSource 빈 1개, 분기마다 System.out.println 1줄(:52 · :61)</td><td><span class="v-ok">충족</span></td><td></td></tr><tr><td>제약 1</td><td>테스트는 항상 H2 인메모리로 돈다.</td><td>SRS 없음</td><td>src\test\resources\application.properties:3 spring.datasource.url=jdbc:h2:mem:portal... (단, DataSource 빈을 직접 정의하므로 이 키는 쓰이지 않음), 테스트 리소스에 portal.datasource.* 키 없음 → DataSourceConfig.java:41-43 기본값 &quot;&quot; → H2. RequirementUpdateAcceptanceTest.java:33-34 password= 로 고정</td><td><span class="v-part">부분 충족</span></td><td>@SpringBootTest 계열은 OS 환경변수 PORTAL_DATASOURCE_URL · _PASSWORD 가 설정돼 있고 MariaDB 가 떠 있으면 MariaDB 로 붙을 수 있음(@DataJpaTest 는 내장 DB 로 대체돼 무관). 테스트 쪽에서 강제하는 장치 없음</td></tr><tr><td>제약 2</td><td>create-drop 이므로 재시작하면 데이터가 지워진다(교육용 설정).</td><td>SRS 없음</td><td>application.properties:12, DataSeeder.java (시작 시 초기 사용자 재삽입)</td><td><span class="v-ok">충족</span></td><td>H2 인메모리는 프로세스 종료로도 사라짐</td></tr></tbody></table>
+<h3>3.2 판정 요약</h3>
+<p>충족 5 / 부분 충족 3 / 미충족 0 / 불일치 1 / 확인 불가 0 (총 9건)</p>
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table><colgroup><col style="width:30%"><col style="width:45%"><col style="width:25%"></colgroup><thead><tr><th>검증 기준(F열)</th><th>고정하는 테스트</th><th>비고</th></tr></thead><tbody><tr><td>MariaDB 를 끈 상태로 실행하면 H2 로 뜨고 로그에 H2 가 찍힌다.</td><td>DataSourceConfigTest#MariaDB에_닿지_않으면_H2로_폴백한다 (닿지 않는 127.0.0.1:1 → H2 URL), DataSourceConfigTest#아무_설정이_없으면_H2_인메모리로_뜨고_H2_로그를_남긴다 (로그 &#x27;&gt;&gt; MariaDB 연결 불가 → H2 인메모리로 실행&#x27;)</td><td>&#x27;닿지 않음&#x27; 경로의 로그는 따로 검증하지 않음. 앱 전체 기동(spring-boot:run) 수준 테스트는 없음</td></tr><tr><td>H2 상태에서 /h2-console 에 접속된다.</td><td>RequirementUpdateAcceptanceTest#H2로_뜬_상태에서_h2_console에_접속된다 (GET /h2-console/ → 2xx, 본문에 H2)</td><td>2026-10-17 실행 통과</td></tr></tbody></table>
+<h2>4. 구성 요소 설계</h2>
+<table><thead><tr><th>구성 요소</th><th>책임</th><th>주요 시그니처(현행 유지)</th></tr></thead><tbody><tr><td>DataSourceConfig (@Configuration)</td><td>MariaDB 도달 여부 판단 후 DataSource 빈 생성, 선택 로그 출력</td><td>DataSourceConfig(@Value(&quot;${portal.datasource.url:}&quot;) String, @Value(&quot;${portal.datasource.username:}&quot;) String, @Value(&quot;${portal.datasource.password:}&quot;) String)<br>@Bean public DataSource dataSource()<br>private boolean isMariaDbConfigured()<br>private boolean isMariaDbReachable()</td></tr><tr><td>application.properties (main)</td><td>접속 기본값 · ddl-auto · H2 콘솔 설정</td><td>portal.datasource.* · spring.jpa.hibernate.ddl-auto=create-drop · spring.h2.console.enabled=true</td></tr><tr><td>application.properties (test)</td><td>테스트 JPA 설정</td><td>ddl-auto=create-drop · H2Dialect</td></tr><tr><td>DataSeeder</td><td>시작 시 초기 사용자 4명 삽입(중복 방지)</td><td>RequirementAcceptanceTest#초기_데이터를_다시_넣어도_사용자_수가_늘지_않는다</td></tr></tbody></table>
+<p>public 생성자 시그니처(문자열 3개)는 DataSourceConfigTest 가 직접 new 하므로 유지한다.</p>
+<h2>5. 인터페이스 설계</h2>
+<p>외부 HTTP 인터페이스는 /h2-console 하나다(스프링 부트 H2 콘솔). 그 밖의 인터페이스는 설정 키 · 환경변수 · 콘솔 로그다.</p>
+<table><thead><tr><th>구분</th><th>이름</th><th>값 · 형식</th><th>비고</th></tr></thead><tbody><tr><td>HTTP</td><td>GET /h2-console/</td><td>H2 웹 콘솔 HTML (JDBC URL jdbc:h2:mem:portal · 사용자 sa)</td><td>spring.h2.console.enabled=true</td></tr><tr><td>설정 키</td><td>portal.datasource.url</td><td>기본 jdbc:mariadb://localhost:3306/portal</td><td>환경변수 PORTAL_DATASOURCE_URL 우선</td></tr><tr><td>설정 키</td><td>portal.datasource.username</td><td>기본 portal</td><td>PORTAL_DATASOURCE_USERNAME</td></tr><tr><td>설정 키</td><td>portal.datasource.password</td><td>기본 빈 값 → MariaDB 시도 안 함</td><td>PORTAL_DATASOURCE_PASSWORD</td></tr><tr><td>로그(MariaDB)</td><td>표준출력 1줄</td><td>&gt;&gt; DB = MariaDB (jdbc:mariadb://localhost:3306/portal)</td><td>DataSourceConfig.java:52</td></tr><tr><td>로그(H2)</td><td>표준출력 1줄</td><td>&gt;&gt; MariaDB 연결 불가 → H2 인메모리로 실행 (조회: http://localhost:8080/h2-console)</td><td>DataSourceConfig.java:61 - 비밀번호 미설정으로 시도하지 않은 경우도 같은 문구</td></tr></tbody></table>
+<h2>6. 데이터 설계</h2>
+<table><thead><tr><th>데이터소스</th><th>드라이버</th><th>URL</th><th>계정</th><th>스키마</th></tr></thead><tbody><tr><td>MariaDB</td><td>org.mariadb.jdbc.Driver</td><td>portal.datasource.url</td><td>portal.datasource.username / password</td><td>ddl-auto=create-drop (시작 시 생성, 종료 시 삭제)</td></tr><tr><td>H2 인메모리</td><td>org.h2.Driver</td><td>jdbc:h2:mem:portal;MODE=LEGACY;DB_CLOSE_DELAY=-1</td><td>sa / (빈 값)</td><td>같음</td></tr></tbody></table>
+<p>코드값 컬럼(결재 status 0/1/2/3/9 등)은 두 DB 에서 같은 정수 컬럼으로 생성된다(REQ-DA-001). MODE=LEGACY 는 레거시 SQL 호환 모드다.</p>
+<h3>선택 상태 전이</h3>
+<table><thead><tr><th>조건</th><th>결과</th><th>로그</th></tr></thead><tbody><tr><td>URL 공백 또는 비밀번호 공백</td><td>H2 (접속 시도 없음)</td><td>H2 문구</td></tr><tr><td>설정 있음 + 2초 안에 연결 성공</td><td>MariaDB</td><td>&gt;&gt; DB = MariaDB (url)</td></tr><tr><td>설정 있음 + 연결 실패 · 시간 초과 · 예외</td><td>H2</td><td>H2 문구</td></tr></tbody></table>
+<h2>7. 처리 흐름</h2>
+<table><thead><tr><th>단계</th><th>처리</th><th>근거</th></tr></thead><tbody><tr><td>1 설정 주입</td><td>portal.datasource.url · username · password (없으면 &quot;&quot;)</td><td>DataSourceConfig.java:41-47</td></tr><tr><td>2 가드</td><td>URL · 비밀번호 중 하나라도 공백이면 3 을 건너뛰고 H2</td><td>:72-74</td></tr><tr><td>3 접속 확인</td><td>DriverManager.setLoginTimeout(2) → getConnection → 즉시 close, 예외면 false</td><td>:77-85</td></tr><tr><td>4 데이터소스 생성</td><td>MariaDB 또는 H2 HikariDataSource (연결은 첫 사용 때)</td><td>:52-68</td></tr><tr><td>5 로그</td><td>선택 결과 1줄 출력</td><td>:52 · :61</td></tr><tr><td>6 스키마</td><td>Hibernate create-drop 으로 테이블 생성 → DataSeeder 초기 사용자</td><td>application.properties:12</td></tr></tbody></table>
+<h2>8. 예외 · 경계 처리</h2>
+<table><thead><tr><th>경계 · 예외</th><th>현재 동작</th><th>레거시 보존 여부</th></tr></thead><tbody><tr><td>MariaDB 미설치 · 꺼짐</td><td>2초 이내 실패 → H2</td><td>보존</td></tr><tr><td>비밀번호 미설정(기본)</td><td>접속 시도 없이 H2</td><td>REQ-SE-001 로 달라진 점(DataSourceConfig.java:27-28 주석에 명시) - 예전 기본 비밀번호로 붙던 환경은 환경변수 필요</td></tr><tr><td>계정 · 비밀번호 틀림</td><td>예외 → H2 폴백 (원인 로그 없음)</td><td>보존 - 원인이 안 보이는 것은 개선 대상</td></tr><tr><td>URL 이 MariaDB 가 아닌 형식</td><td>getConnection 예외 → H2</td><td>보존</td></tr><tr><td>테스트 실행 시 OS 에 PORTAL_DATASOURCE_* 설정</td><td>@SpringBootTest 가 MariaDB 로 붙을 수 있음</td><td>확인 필요 - 제약 1 위반 가능</td></tr><tr><td>재시작</td><td>create-drop · 인메모리라 데이터 소멸</td><td>보존(교육용)</td></tr></tbody></table>
+<h2>9. 검증 설계</h2>
+<table><thead><tr><th>검증 기준</th><th>매핑 테스트</th><th>빠진 테스트 제안</th></tr></thead><tbody><tr><td>MariaDB 끄고 실행 → H2 + 로그에 H2</td><td>DataSourceConfigTest#MariaDB에_닿지_않으면_H2로_폴백한다, #아무_설정이_없으면_H2_인메모리로_뜨고_H2_로그를_남긴다</td><td>DataSourceConfigTest#MariaDB에_닿지_않으면_H2_로그를_남긴다 (닿지 않는 URL 경로의 로그까지 확인)</td></tr><tr><td>H2 에서 /h2-console 접속</td><td>RequirementUpdateAcceptanceTest#H2로_뜬_상태에서_h2_console에_접속된다</td><td>-</td></tr><tr><td>(제약 1) 테스트는 항상 H2</td><td>테스트 없음</td><td>TestDatabaseGuardTest#스프링_테스트_컨텍스트의_데이터소스는_H2다 (DataSource 빈의 JDBC URL 이 jdbc:h2:mem: 으로 시작)</td></tr><tr><td>(기능 1) 2초 제한</td><td>테스트 없음</td><td>DataSourceConfigTest#응답없는_주소면_접속확인이_수초_안에_끝난다 (블랙홀 주소 · 경과시간 상한 - 네트워크 의존이라 선택)</td></tr></tbody></table>
+<pre>@SpringBootTest
+class TestDatabaseGuardTest {
+    @Autowired
+    private DataSource dataSource;
+
+    @Test
+    void 스프링_테스트_컨텍스트의_데이터소스는_H2다() {
+        String jdbcUrl = ((HikariDataSource) dataSource).getJdbcUrl();
+        assertThat(jdbcUrl).startsWith(&quot;jdbc:h2:mem:&quot;);
+    }
+}</pre>
+<p>제약 1 을 확실히 하려면 src\test\resources\application.properties 에 portal.datasource.password= (빈 값)을 명시하는 방안이 있다. 단 @TestPropertySource 와 달리 application.properties 값은 OS 환경변수보다 우선순위가 낮으므로, 테스트 클래스 공통 설정(@TestPropertySource 또는 테스트 프로파일)으로 고정해야 효과가 있다. 이 변경은 설정 변경이라 본 설계서에서는 제안만 한다.</p>
+<h2>10. 검토 의견 · 후속 과제</h2>
+<h3>보존 대상</h3>
+<ul class="keep"><li>H2 자동 폴백 · H2 URL(jdbc:h2:mem:portal;MODE=LEGACY;DB_CLOSE_DELAY=-1) · 2초 접속 제한</li><li>시작 로그 문구 2종(DataSourceConfigTest 가 H2 문구를 고정)</li><li>/h2-console 활성화 · ddl-auto=create-drop (교육용)</li><li>DataSourceConfig 의 public 생성자 시그니처</li></ul>
+<h3>개선 대상 · 정정 대상</h3>
+<ul class="improve"><li>[불일치] F열 기능 3 의 &#x27;&gt;&gt; DB = ...&#x27; 는 MariaDB 분기만 맞음 → F열을 실제 문구(H2: &#x27;&gt;&gt; MariaDB 연결 불가 → H2 인메모리로 실행 ...&#x27;)로 정정 권장. 코드 문구를 바꾸면 관찰 가능한 출력 변경이므로 별도 요구사항으로만</li><li>[부분 충족] F열 기능 1 · 입력은 REQ-SE-001 이전 기준 → &#x27;비밀번호가 설정된 경우에만 접속을 시도&#x27; 로 F열 갱신 권장</li><li>[부분 충족] 테스트의 H2 고정을 환경변수와 무관하게 강제(9절 제안)</li><li>접속 실패 원인(인증 실패 · 시간 초과)이 로그에 남지 않음 - 운영 진단성 개선 후보</li><li>src\test\resources\application.properties:3-6 의 spring.datasource.* 는 DataSource 빈 직접 정의로 쓰이지 않는 설정 - 혼동 방지 주석 권장</li></ul>
+<p>연계 요구사항: REQ-SE-001(DB 접속 정보 외부화 - 기능 1 · 입력의 변경 원인), REQ-DA-001(두 DB 공통 정수 저장값).</p>
+</main>

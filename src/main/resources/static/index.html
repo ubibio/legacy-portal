@@ -119,9 +119,19 @@ async function createApproval(){
 }
 
 // ---- 처리 ----
+// [REQ-F-008] 레거시: 반려(3)도 reason 을 '사유 입력' 고정 문자열로 보냈다 → 반려일 때만 사유를 직접 입력받는다.
+//   입력 창에서 [취소]를 누르면 요청을 보내지 않는다. [보존] URL · JSON 필드(userId · action · reason) 그대로,
+//   다른 처리(상신 · 승인 · 취소)는 서버가 reason 을 쓰지 않으므로 빈 문자열을 보낸다.
+const REJECT_ACTION=3;
 async function act(id, action){
+  let reason='';
+  if(action===REJECT_ACTION){
+    const input=prompt('반려 사유를 입력하세요.','');
+    if(input===null) return;
+    reason=input;
+  }
   const r=await api('/api/approvals/'+id+'/process',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({userId:me.id,action,reason:'사유 입력'})});
+        body:JSON.stringify({userId:me.id,action,reason})});
   await loadDrafts(); await loadInbox();
 }
 

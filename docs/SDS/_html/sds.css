@@ -1,0 +1,20 @@
+@page { size: A4; margin: 18mm 16mm; }
+* { box-sizing: border-box; }
+body { font-family: 'Malgun Gothic', sans-serif; font-size: 10pt; line-height: 1.55; color: #1a1a1a; background: #fff; margin: 0; }
+.cover { border-bottom: 3px solid #1f3a5f; padding-bottom: 8px; margin-bottom: 14px; }
+.cover h1 { font-size: 17pt; margin: 0 0 4px; color: #1f3a5f; }
+.cover .meta { font-size: 9pt; color: #555; }
+h2 { font-size: 12.5pt; color: #1f3a5f; border-left: 4px solid #1f3a5f; padding-left: 8px; margin: 18px 0 8px; page-break-after: avoid; }
+h3 { font-size: 11pt; margin: 12px 0 6px; page-break-after: avoid; }
+table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 8.8pt; }
+thead { display: table-header-group; }
+tr { page-break-inside: avoid; }
+th, td { border: 1px solid #9aa5b1; padding: 4px 6px; vertical-align: top; text-align: left; word-break: break-word; }
+th { background: #e8eef5; }
+pre, code { font-family: Consolas, 'Malgun Gothic', monospace; font-size: 8.5pt; }
+pre { background: #f5f7fa; border: 1px solid #d5dbe2; padding: 6px 8px; white-space: pre-wrap; word-break: break-word; }
+.raw { white-space: pre-wrap; background: #fbfbf4; border: 1px solid #ddd8b8; padding: 8px; font-size: 8.8pt; }
+.v-ok { color: #1b6e2e; font-weight: bold; } .v-part { color: #9a6700; font-weight: bold; }
+.v-no { color: #b42318; font-weight: bold; } .v-diff { color: #7a2ea0; font-weight: bold; } .v-unk { color: #555; font-weight: bold; }
+.keep { background: #eef6ee; } .improve { background: #fdf1e7; }
+.page-break { page-break-before: always; }

@@ -1,0 +1,10 @@
+{
+  "id": "REQ-F-004",
+  "title": "결재 반려 및 반려 사유 기록",
+  "ok": 7,
+  "partial": 0,
+  "missing": 0,
+  "mismatch": 1,
+  "unknown": 0,
+  "notes": "불일치 1: F열 '현재 화면은 반려 사유를 사유 입력 고정 문자열로 보낸다' - index.html:122-135 는 이미 prompt 로 직접 입력(REQ-F-008 반영)"
+}

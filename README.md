@@ -12,13 +12,14 @@
 ## 사전 준비
 - JDK 21 이상
 - Maven 설치 불필요 - 프로젝트의 **Maven Wrapper(mvnw)** 가 자동 처리
-- MariaDB (Windows=WSL Ubuntu / Mac=Homebrew, 계정 portal/portal1234)
+- MariaDB (Windows=WSL Ubuntu / Mac=Homebrew, 계정 portal) - 선택. 비밀번호는 소스에 없고 환경변수 `PORTAL_DATASOURCE_PASSWORD` 로 넣는다 (REQ-SE-001)
 - Claude Code CLI + Anthropic API Key
 
 ## 실행 (Maven 설치 불필요)
 ```bat
 :: 그냥 실행하면 DB 를 자동 선택한다 (DataSourceConfig.java)
-::   - MariaDB 가 떠 있으면 → MariaDB 사용
+::   - MariaDB 가 떠 있고 PORTAL_DATASOURCE_PASSWORD 가 있으면 → MariaDB 사용
+::     (URL · 계정도 PORTAL_DATASOURCE_URL · PORTAL_DATASOURCE_USERNAME 으로 바꿀 수 있다)
 ::   - MariaDB 가 없으면     → H2 인메모리로 자동 실행 (설치 0, 입력도 0)
 .\mvnw.cmd spring-boot:run
 ```

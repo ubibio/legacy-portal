@@ -1,0 +1,10 @@
+{
+  "id": "REQ-NF-003",
+  "title": "요청 입력 검증",
+  "ok": 3,
+  "partial": 0,
+  "missing": 5,
+  "mismatch": 0,
+  "unknown": 0,
+  "notes": "미충족: 기안·처리 필수값/금액 검증, NF-002 오류 형식, 400+필드별 사유, DTO 검증 규칙 - 검증 의존성·@Valid 없음, 생략 시 500(NPE)"
+}

@@ -1,0 +1,155 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<title>SDS REQ-F-004</title><link rel="stylesheet" href="sds.css"></head><body>
+<main class="sds" data-id="REQ-F-004">
+<div class="cover"><h1>SDS - REQ-F-004 결재 반려 및 반려 사유 기록</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<h2>1. 개요</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>요구사항 ID</td><td>REQ-F-004</td></tr>
+<tr><td>요구사항명</td><td>결재 반려 및 반려 사유 기록</td></tr>
+<tr><td>대 / 중 / 소분류</td><td>PORTAL / Approval / Reject</td></tr>
+<tr><td>우선순위</td><td>High</td></tr>
+<tr><td>진행현황</td><td>테스트중</td></tr>
+<tr><td>수용 여부</td><td>수용</td></tr>
+<tr><td>비고(엑셀)</td><td>소스 역추출.</td></tr>
+<tr><td>요약</td><td>action=3 으로 상신(1) 문서를 반려(3)하고 rejectReason 을 저장, 기안자에게 &#x27;[결재반려] {제목}&#x27; 메일(마지막 줄 &#x27;사유: {사유}&#x27;)과 감사로그를 남긴다. 서버 동작 7개 문장은 충족, &#x27;현재 화면은 사유 입력 고정 문자열&#x27; 서술 1건은 소스(index.html)와 불일치.</td></tr>
+</tbody></table>
+<h2>2. 근거</h2>
+<p><b>SRS 없음 (엑셀 F열 · 소스만으로 분석)</b> - <code>D:\legacy-portal\docs\SRS</code> 가 존재하지 않는다. 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<div class="raw">[개요]
+결재자가 상신된 결재 문서를 반려하고, 반려 사유를 문서에 남겨 기안자에게 알린다.
+
+[상세 기능 요구사항]
+1) action=3(반려) 요청을 사유(reason)와 함께 처리한다.
+2) 승인과 같은 조건(상신 상태 · 결재자 일치 · 팀장 이상)일 때만 반려(3)로 바꾼다.
+3) 반려 사유를 rejectReason 에 저장한다. 사유 생략 시 빈 문자열로 저장한다.
+4) 반려 성공 시 기안자에게 &#x27;[결재반려] {제목}&#x27; 메일을 보내고 본문에 사유를 넣는다.
+5) 감사로그 &#x27;APPROVAL REJECT&#x27; 를 남긴다.
+
+[입력 / 출력]
+- 입력: 결재 문서 ID, 요청자 ID, action=3, 반려 사유
+- 출력: 상태 변경(1→3), rejectReason, 기안자 메일 1건, 감사로그 1줄
+
+[제약 조건 / 비기능 요구사항]
+- 조건 불만족 시 조용히 무시한다(현재 동작 보존).
+- 현재 화면은 반려 사유를 &#x27;사유 입력&#x27; 고정 문자열로 보낸다. 사유 입력 화면은 REQ-F-008 에서 다룬다.
+
+[검증 기준]
+- 정상 반려 후 조회 응답의 rejectReason 이 입력 사유와 같다.
+- 반려 메일 본문 마지막 줄이 &#x27;사유: {사유}&#x27; 이다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\approval (Approval.reject · ApprovalNotifier.notifyRejected)
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</div>
+<p>설계 제약: <code>D:\legacy-portal\CLAUDE.md</code> 의 불변 규칙 - API 엔드포인트 · HTTP 메서드, 요청/응답 JSON 구조, DB 저장 정수값, public 메서드 시그니처, 관찰 가능한 동작(조용한 무시 포함)을 바꾸지 않는다. 결함은 보존 대상과 개선 대상을 나눠 적는다.</p>
+<h2>3. 분석 결과</h2><h3>3.1 추적표 (F열 문장 ↔ 소스)</h3>
+<table><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead><tbody>
+<tr><td>상세 1</td><td>action=3(반려) 요청을 사유(reason)와 함께 처리한다.</td><td>SRS 없음</td><td>ApprovalAction.java:17<br>ApprovalService.java:131<br>dto/ProcessRequest.java:15</td><td><span class="v-ok">충족</span></td><td></td></tr>
+<tr><td>상세 2</td><td>승인과 같은 조건(상신 상태 · 결재자 일치 · 팀장 이상)일 때만 반려(3)로 바꾼다.</td><td>SRS 없음</td><td>Approval.java:146-150, 189-193</td><td><span class="v-ok">충족</span></td><td>승인과 같은 canBeDecidedBy 사용</td></tr>
+<tr><td>상세 3</td><td>반려 사유를 rejectReason 에 저장한다. 사유 생략 시 빈 문자열로 저장한다.</td><td>SRS 없음</td><td>Approval.java:151<br>dto/ProcessRequest.java:18-20</td><td><span class="v-ok">충족</span></td><td>API 경로 기준. 서비스 직접 호출로 null 을 주면 null 저장(검증 없음). &quot;reason&quot;: null 명시는 &quot;&quot; (알려진 차이, ProcessRequest.java:12-13)</td></tr>
+<tr><td>상세 4</td><td>반려 성공 시 기안자에게 &#x27;[결재반려] {제목}&#x27; 메일을 보내고 본문에 사유를 넣는다.</td><td>SRS 없음</td><td>ApprovalService.java:162<br>ApprovalNotifier.java:59-65, 81-84</td><td><span class="v-ok">충족</span></td><td>본문 마지막 줄 <code>사유: {reason}</code></td></tr>
+<tr><td>상세 5</td><td>감사로그 &#x27;APPROVAL REJECT&#x27; 를 남긴다.</td><td>SRS 없음</td><td>ApprovalService.java:163<br>ApprovalAuditRecorder.java:38-40</td><td><span class="v-ok">충족</span></td><td></td></tr>
+<tr><td>출력</td><td>상태 변경(1→3), rejectReason, 기안자 메일 1건, 감사로그 1줄</td><td>SRS 없음</td><td>ApprovalService.java:157-164</td><td><span class="v-ok">충족</span></td><td>HTTP 200 빈 본문</td></tr>
+<tr><td>제약 1</td><td>조건 불만족 시 조용히 무시한다.</td><td>SRS 없음</td><td>ApprovalService.java:158-160<br>Approval.java:147-149</td><td><span class="v-ok">충족</span></td><td>가드 실패 시 rejectReason 도 기록하지 않음</td></tr>
+<tr><td>제약 2</td><td>현재 화면은 반려 사유를 &#x27;사유 입력&#x27; 고정 문자열로 보낸다. 사유 입력 화면은 REQ-F-008 에서 다룬다.</td><td>SRS 없음</td><td>static/index.html:122-135</td><td><span class="v-diff">불일치</span></td><td>현행 화면은 이미 <code>prompt(&#x27;반려 사유를 입력하세요.&#x27;)</code> 로 사용자가 입력한 사유를 보낸다(취소 시 요청 안 함). F열 서술이 REQ-F-008 반영 이전 시점 기준. 서버 동작에는 영향 없음</td></tr>
+</tbody></table>
+<h3>3.2 판정 요약</h3>
+<table><thead><tr><th>충족</th><th>부분 충족</th><th>미충족</th><th>불일치</th><th>확인 불가</th></tr></thead><tbody>
+<tr><td>7</td><td>0</td><td>0</td><td>1</td><td>0</td></tr>
+</tbody></table>
+<p>불일치 1건은 서버 설계가 아니라 F열의 &#x27;현재 화면&#x27; 서술이 소스보다 오래된 것이다. 설계안: F열 제약 2 를 &#x27;화면은 반려 시 사유를 직접 입력받는다(REQ-F-008 반영 완료)&#x27;로 갱신하거나, REQ-F-008 상세 6) 의 &#x27;(현재는 고정 문자열 전송)&#x27; 문구와 함께 정리한다. 서버 코드 변경은 필요 없다.</p>
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table><thead><tr><th>검증 기준(F열)</th><th>고정하는 테스트 (테스트클래스#메서드)</th></tr></thead><tbody>
+<tr><td>정상 반려 후 조회 응답의 rejectReason 이 입력 사유와 같다.</td><td>RequirementAcceptanceTest#정상_반려_후_조회_응답의_반려사유가_입력한_사유와_같다<br>ApprovalServiceTest#팀장이_상신된_결재를_반려하면_반려되고_사유가_저장된다</td></tr>
+<tr><td>반려 메일 본문 마지막 줄이 &#x27;사유: {사유}&#x27; 이다.</td><td>ApprovalNotificationOutputTest#반려하면_기안자에게_사유가_담긴_결재반려_메일과_감사로그가_나간다<br>ApprovalServiceMailUnitTest#반려하면_기안자에게_사유가_담긴_결재반려_메일을_보낸다</td></tr>
+</tbody></table>
+<h2>4. 구성 요소 설계</h2><p>public 시그니처는 현행 그대로 유지한다(신규 public 메서드 추가 없음).</p>
+<table><thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처</th></tr></thead><tbody>
+<tr><td>ApprovalService</td><td>반려 흐름</td><td><code>public void processApproval(Long id, Long userId, int action, String reason)</code><br><code>private void reject(Approval approval, User requester, String reason)</code></td></tr>
+<tr><td>Approval (Entity)</td><td>반려 가드 · 상태 · 사유 기록</td><td><code>public boolean reject(User requester, String reason, LocalDateTime now)</code></td></tr>
+<tr><td>ProcessRequest (record)</td><td>reason 기본값 &quot;&quot;</td><td><code>public ProcessApprovalCommand toCommand()</code></td></tr>
+<tr><td>ApprovalNotifier</td><td>기안자에게 [결재반려] 메일 + 사유 줄</td><td><code>public void notifyRejected(Approval approval, String reason)</code></td></tr>
+<tr><td>ApprovalAuditRecorder</td><td>APPROVAL REJECT 로그</td><td><code>public void recordRejected(Approval approval, Long actorId)</code></td></tr>
+<tr><td>index.html act()</td><td>반려 시 사유 입력 prompt (REQ-F-008 영역)</td><td><code>async function act(id, action)</code></td></tr>
+</tbody></table>
+<h2>5. 인터페이스 설계</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>엔드포인트</td><td><code>POST /api/approvals/{id}/process</code> (ApprovalController.java:43-47) - URL · HTTP 메서드 변경 금지, /submit · /approve 등으로 쪼개지 않는다</td></tr>
+<tr><td>경로 변수</td><td><code>id</code> (Long) - 결재 문서 ID</td></tr>
+<tr><td>요청 본문</td><td><code>ProcessRequest(Long userId, Integer action, String reason)</code> (dto/ProcessRequest.java:15)</td></tr>
+<tr><td>action 코드</td><td>1=상신 2=승인 3=반려 9=취소 (ApprovalAction.java:15-18). 그 밖의 값은 조용히 무시</td></tr>
+<tr><td>reason</td><td>생략 시 &quot;&quot; (ProcessRequest.java:18-20)</td></tr>
+<tr><td>응답</td><td>HTTP 200, 빈 본문 (컨트롤러 반환형 void) - 처리 성공 · 무시 모두 같다</td></tr>
+<tr><td>오류 동작</td><td>userId 또는 action 생략 → <code>toCommand()</code> 의 언박싱 NPE → 500 (ProcessRequest.java:26-28, 전역 예외 처리기 없음). 없는 결재 id · 없는 사용자 · 조건 불만족 → 200 빈 본문</td></tr>
+</tbody></table><table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody>
+<tr><td>요청 예시</td><td>{&quot;userId&quot;:2,&quot;action&quot;:3,&quot;reason&quot;:&quot;예산 초과&quot;}</td></tr>
+<tr><td>메일</td><td>수신: 기안자 email / 제목: <code>[결재반려] {제목}</code> / 본문: <code>안녕하세요 {기안자 이름}님,</code> ↵ <code>결재가 반려되었습니다.</code> ↵ <code>제목: {제목}</code> ↵ <code>사유: {reason}</code></td></tr>
+<tr><td>감사로그</td><td><code>[AUDIT] [yyyy-MM-dd HH:mm:ss] APPROVAL REJECT id={id} by={userId}</code> (사유는 로그에 남기지 않음)</td></tr>
+<tr><td>조회 확인</td><td><code>GET /api/approvals/drafts/{drafterId}</code> · <code>GET /api/approvals/inbox/{approverId}</code> 응답의 rejectReason</td></tr>
+</tbody></table>
+<h2>6. 데이터 설계</h2>
+<table><thead><tr><th>필드(Approval)</th><th>컬럼(기본 명명 전략)</th><th>Java 타입</th><th>DB 저장값 / 비고</th></tr></thead><tbody>
+<tr><td>id</td><td>id</td><td>Long</td><td>IDENTITY 자동 증가 (Approval.java:42-44)</td></tr>
+<tr><td>title / content</td><td>title / content</td><td>String</td><td>검증 없음</td></tr>
+<tr><td>type</td><td>type</td><td>int</td><td>1~4 정수 그대로 (enum 미도입 - 백로그 R07)</td></tr>
+<tr><td>status</td><td>status</td><td>ApprovalStatus</td><td><code>@Convert(ApprovalStatusConverter)</code> + NOT NULL → 정수 0/1/2/3/9 (Approval.java:51-53). @Enumerated 금지</td></tr>
+<tr><td>priority</td><td>priority</td><td>int</td><td>1~3 정수 그대로</td></tr>
+<tr><td>drafterId / approverId</td><td>drafter_id / approver_id</td><td>Long</td><td>사용자 ID (FK 제약 없음)</td></tr>
+<tr><td>rejectReason</td><td>reject_reason</td><td>String</td><td>반려 시에만 기록, 그 외 null</td></tr>
+<tr><td>amount</td><td>amount</td><td>long</td><td>금액 (기본 0)</td></tr>
+<tr><td>createdAt / updatedAt</td><td>created_at / updated_at</td><td>LocalDateTime</td><td>주입된 Clock 기준 지금 (ApprovalService.java:56)</td></tr>
+</tbody></table><table><thead><tr><th>현재 상태</th><th>action</th><th>조건</th><th>결과 상태</th><th>부수효과</th></tr></thead><tbody>
+<tr><td>0 임시저장</td><td>1 상신</td><td>없음(요청자 검사 없음)</td><td>1</td><td>지출 · 100만원 이상이면 priority=3, 저장 → 결재자 메일 → SUBMIT 로그</td></tr>
+<tr><td>1 상신</td><td>2 승인</td><td>요청자 = 결재자 · role ≥ 2</td><td>2</td><td>저장 → 기안자 메일 → APPROVE 로그</td></tr>
+<tr><td>1 상신</td><td>3 반려</td><td>요청자 = 결재자 · role ≥ 2</td><td>3</td><td>rejectReason 기록, 저장 → 기안자 메일 → REJECT 로그</td></tr>
+<tr><td>0 · 1</td><td>9 취소</td><td>요청자 = 기안자</td><td>9</td><td>저장 → CANCEL 로그 (메일 없음)</td></tr>
+<tr><td>그 밖 조합</td><td>-</td><td>-</td><td>변화 없음</td><td>저장 · 메일 · 로그 없음, 200 빈 본문</td></tr>
+</tbody></table>
+<h2>7. 처리 흐름</h2>
+<table><thead><tr><th>순서</th><th>단계</th><th>처리 내용</th><th>소스 위치</th></tr></thead><tbody>
+<tr><td>1</td><td>조회</td><td>결재 · 요청자 조회</td><td>ApprovalService.java:116-123</td></tr>
+<tr><td>2</td><td>action 해석</td><td>3 → REJECT, reason 전달</td><td>ApprovalService.java:131</td></tr>
+<tr><td>3</td><td>가드</td><td>canBeDecidedBy 거짓이면 종료 (사유도 기록 안 함)</td><td>Approval.java:147-149</td></tr>
+<tr><td>4</td><td>상태 변경</td><td>status=3, rejectReason=reason, updatedAt=now</td><td>Approval.java:150-152</td></tr>
+<tr><td>5</td><td>저장</td><td>save</td><td>ApprovalService.java:161</td></tr>
+<tr><td>6</td><td>메일</td><td>기안자에게 [결재반려] + 사유</td><td>ApprovalService.java:162</td></tr>
+<tr><td>7</td><td>감사로그</td><td>APPROVAL REJECT</td><td>ApprovalService.java:163</td></tr>
+</tbody></table>
+<h2>8. 예외 · 경계 처리</h2>
+<table><thead><tr><th>경우</th><th>현재 동작</th><th>소스 위치</th><th>레거시 보존 여부</th></tr></thead><tbody>
+<tr><td>reason 생략 (API)</td><td>&quot;&quot; 저장, 메일 마지막 줄 <code>사유: </code></td><td>dto/ProcessRequest.java:18-20</td><td>보존</td></tr>
+<tr><td>reason null (서비스 직접 호출)</td><td>null 저장, 메일 <code>사유: null</code></td><td>Approval.java:151</td><td>보존</td></tr>
+<tr><td>&quot;reason&quot;: null 명시 (API)</td><td>&quot;&quot; 저장 (레거시는 null)</td><td>dto/ProcessRequest.java:12-13</td><td>알려진 차이(비정상 요청만)</td></tr>
+<tr><td>결재자 아님 · 사원 · 기안자 본인 · 임시저장 문서</td><td>무변화, 사유 미기록, 200</td><td>Approval.java:189-193</td><td>보존</td></tr>
+<tr><td>반려된 문서 재반려 · 재처리</td><td>반려 상태 · 사유 유지</td><td>Approval.java:190</td><td>보존</td></tr>
+<tr><td>화면에서 사유 입력 취소</td><td>요청을 보내지 않음</td><td>static/index.html:128-130</td><td>REQ-F-008 에서 이미 변경됨</td></tr>
+</tbody></table>
+<h2>9. 검증 설계</h2><h3>9.1 검증 기준 ↔ 테스트 매핑</h3>
+<table><thead><tr><th>검증 기준 / 동작</th><th>테스트</th><th>상태</th></tr></thead><tbody>
+<tr><td>rejectReason = 입력 사유</td><td>RequirementAcceptanceTest#정상_반려_후_조회_응답의_반려사유가_입력한_사유와_같다</td><td>있음</td></tr>
+<tr><td>메일 마지막 줄 사유</td><td>ApprovalNotificationOutputTest#반려하면_기안자에게_사유가_담긴_결재반려_메일과_감사로그가_나간다</td><td>있음</td></tr>
+<tr><td>reason 생략 → &quot;&quot;</td><td>ApprovalControllerTest#반려_요청에_reason을_빼면_반려사유가_빈_문자열로_저장된다</td><td>있음</td></tr>
+<tr><td>조건 불만족 무시</td><td>ApprovalServiceBranchTest#지정된_결재자가_아닌_팀장이_반려하면_조용히_무시되고_사유도_저장되지_않는다 · #결재자로_지정된_사원이_반려하면_조용히_무시된다 · #임시저장_결재를_반려하면_조용히_무시된다 · ApprovalServiceSafetyNetTest#기안자_본인이_반려하면_조용히_무시된다</td><td>있음</td></tr>
+<tr><td>null · 빈 사유</td><td>ApprovalProcessCharacterizationTest#반려_사유가_null이면_null_그대로_저장된다 · #반려_사유가_빈_문자열이어도_반려된다</td><td>있음</td></tr>
+<tr><td>화면 사유 입력</td><td>테스트 없음 (JS 화면)</td><td>제안</td></tr>
+</tbody></table>
+<h3>9.2 빠진 테스트 제안</h3><p>특성화 테스트 본문은 수정하지 않고 새 테스트로 추가한다. 메서드명은 한글 시나리오, 필드 · 변수는 영어(camelCase).</p>
+<table><thead><tr><th>제안 테스트 메서드</th><th>배치 클래스</th><th>고정할 내용 (변수명 예)</th></tr></thead><tbody>
+<tr><td>사유를_빼고_반려하면_메일_마지막_줄이_사유_콜론으로_끝난다()</td><td>ApprovalNotificationOutputTest 옆 새 클래스</td><td><code>emptyReason</code> = &quot;&quot; → 본문 끝 <code>\n사유: </code></td></tr>
+<tr><td>반려_사유_입력을_취소하면_처리_요청을_보내지_않는다()</td><td>화면 E2E (REQ-F-008 범위)</td><td><code>rejectButton</code> 클릭 후 prompt 취소 → /process 요청 0건</td></tr>
+</tbody></table>
+<h2>10. 검토 의견 · 후속 과제</h2><h3>10.1 보존 대상 (리팩토링 단계에서 바꾸지 않음)</h3>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr class="keep"><td>조용한 무시</td><td>조건 불만족 · 없는 결재 · 없는 사용자 · 정의되지 않은 action 은 예외 없이 200 빈 본문 (ApprovalService.java:117-127)</td></tr><tr class="keep"><td>DB 저장값</td><td>status 0/1/2/3/9 정수 (ApprovalStatusConverter.java:16-24)</td></tr><tr class="keep"><td>사유 무검증</td><td>빈 문자열 · null 그대로 저장</td></tr><tr class="keep"><td>메일 · 로그 문자열</td><td><code>[결재반려] {제목}</code> / <code>사유: {사유}</code> / <code>APPROVAL REJECT</code></td></tr></tbody></table>
+<h3>10.2 개선 대상 (재설계 단계 · 별도 요구사항)</h3>
+<table><thead><tr><th>항목</th><th>설계안</th><th>연계</th></tr></thead><tbody><tr class="improve"><td>F열 제약 2 서술이 소스와 불일치</td><td>엑셀 F열 문구를 현행(사용자 직접 입력)으로 갱신 - 문서 수정, 코드 변경 없음</td><td>REQ-F-008</td></tr><tr class="improve"><td>빈 사유 반려 허용</td><td>사유 필수 검증(400) - 동작 변경이라 재설계 단계</td><td>REQ-NF-003</td></tr><tr class="improve"><td>조용한 무시</td><td>오류 응답으로 알림</td><td>REQ-NF-002</td></tr></tbody></table>
+<h3>10.3 연계 요구사항</h3>
+<table><thead><tr><th>요구사항</th><th>경계</th></tr></thead><tbody>
+<tr><td>REQ-F-008 업무 포털 결재 화면</td><td>사유 입력 화면 - index.html 에 이미 반영됨 (F열 상세 6 의 &#x27;현재는 고정 문자열&#x27; 문구도 함께 점검 필요)</td></tr>
+<tr><td>REQ-F-003 승인</td><td>같은 가드 공유</td></tr>
+<tr><td>REQ-NF-003 요청 입력 검증</td><td>사유 필수 여부 등 검증</td></tr>
+</tbody></table>
+</main></body></html>

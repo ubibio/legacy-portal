@@ -2,8 +2,10 @@ package kr.hull.portal.approval;
 
 import kr.hull.portal.user.User;
 import kr.hull.portal.user.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -35,6 +37,12 @@ import java.util.List;
  * [보존] public 메서드 이름 · 시그니처 전부, 조용히 무시하는 동작, 저장 → 메일 → 감사로그 순서,
  *   메일 · 감사로그 문자열(ApprovalNotificationOutputTest), DB 정수값, 응답 JSON.
  *   검증: ApprovalServiceTest 6개 호출 · 기대값 수정 없이 green
+ *
+ * [리팩토링 R13 · REQ-NF-004] LocalDateTime.now() 직접 호출 4곳 → 주입받은 Clock 으로 LocalDateTime.now(clock)
+ *   (기법: 숨은 의존성(시스템 시계) 주입 · 이유: 테스트에서 시각을 고정해 createdAt · updatedAt 을 정확히 비교)
+ *   - 생성자: 기존 4인자 생성자는 그대로 두고(테스트가 직접 new 한다 · 시스템 기본 Clock), Clock 을 받는 5인자 생성자를 더한다.
+ *     둘 다 @Autowired(required = false) - 스프링은 Clock 빈이 있으면(앱 · @SpringBootTest) 5인자, 없으면(@DataJpaTest 슬라이스) 4인자를 고른다.
+ *   - [보존] 기록되는 시각의 의미(시스템 기본 시간대의 지금) · public 메서드 시그니처 그대로.
  */
 @Service
 public class ApprovalService {
@@ -44,13 +52,25 @@ public class ApprovalService {
     // [리팩토링 R10] MailSender · AuditLogger 를 직접 쓰지 않고, 결재 전용 알림 · 감사 협력 객체를 주입받는다
     private final ApprovalNotifier approvalNotifier;
     private final ApprovalAuditRecorder approvalAuditRecorder;
+    // [리팩토링 R13] 현재 시각의 출처 - LocalDateTime.now() 직접 호출 대신 (common.ClockConfig)
+    private final Clock clock;
 
+    /** [보존] 기존 생성자 - 시스템 기본 Clock 을 쓴다. Clock 빈이 없는 슬라이스 테스트 · 직접 new 하는 테스트용. */
+    @Autowired(required = false)
     public ApprovalService(ApprovalRepository approvalRepository, UserRepository userRepository,
                            ApprovalNotifier approvalNotifier, ApprovalAuditRecorder approvalAuditRecorder) {
+        this(approvalRepository, userRepository, approvalNotifier, approvalAuditRecorder, Clock.systemDefaultZone());
+    }
+
+    /** [리팩토링 R13] Clock 을 받는 생성자 - 앱은 ClockConfig 의 빈, 테스트는 Clock.fixed(...) 를 넣는다. */
+    @Autowired(required = false)
+    public ApprovalService(ApprovalRepository approvalRepository, UserRepository userRepository,
+                           ApprovalNotifier approvalNotifier, ApprovalAuditRecorder approvalAuditRecorder, Clock clock) {
         this.approvalRepository = approvalRepository;
         this.userRepository = userRepository;
         this.approvalNotifier = approvalNotifier;
         this.approvalAuditRecorder = approvalAuditRecorder;
+        this.clock = clock;
     }
 
     /**
@@ -58,7 +78,7 @@ public class ApprovalService {
      * [리팩토링 R12] 인자 8개 → DraftApprovalCommand 하나 (기법: 매개변수 객체 도입). 생성 규칙은 Approval.draft 가 맡는다.
      */
     public Approval create(DraftApprovalCommand command) {
-        Approval approval = Approval.draft(command, LocalDateTime.now());
+        Approval approval = Approval.draft(command, LocalDateTime.now(clock));
         approvalRepository.save(approval);
         approvalAuditRecorder.recordCreated(approval, command.drafterId());
         return approval;
@@ -117,7 +137,7 @@ public class ApprovalService {
 
     /** 상신. [보존] 요청자가 기안자인지는 보지 않는다 - 레거시 동작(재설계 단계 결함 후보). */
     private void submit(Approval approval, Long requesterId) {
-        if (!approval.submit(LocalDateTime.now())) {
+        if (!approval.submit(LocalDateTime.now(clock))) {
             return;
         }
         approvalRepository.save(approval);
@@ -126,7 +146,7 @@ public class ApprovalService {
     }
 
     private void approve(Approval approval, User requester) {
-        if (!approval.approve(requester, LocalDateTime.now())) {
+        if (!approval.approve(requester, LocalDateTime.now(clock))) {
             return;
         }
         approvalRepository.save(approval);
@@ -135,7 +155,7 @@ public class ApprovalService {
     }
 
     private void reject(Approval approval, User requester, String reason) {
-        if (!approval.reject(requester, reason, LocalDateTime.now())) {
+        if (!approval.reject(requester, reason, LocalDateTime.now(clock))) {
             return;
         }
         approvalRepository.save(approval);
@@ -145,7 +165,7 @@ public class ApprovalService {
 
     /** 취소. [보존] 메일 없이 감사로그만. */
     private void cancel(Approval approval, Long requesterId) {
-        if (!approval.cancel(requesterId, LocalDateTime.now())) {
+        if (!approval.cancel(requesterId, LocalDateTime.now(clock))) {
             return;
         }
         approvalRepository.save(approval);

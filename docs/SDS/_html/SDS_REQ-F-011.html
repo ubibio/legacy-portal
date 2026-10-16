@@ -1,0 +1,163 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="sds.css">
+<title>SDS - REQ-F-011</title>
+<div class="cover"><h1>SDS - REQ-F-011 일정 등록 유효성 및 시간 중복 검사</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<main class="sds" data-id="REQ-F-011">
+
+<h2>1. 개요</h2>
+<table>
+<tr><th style="width:22%">요구사항 ID</th><td>REQ-F-011</td></tr>
+<tr><th>요구사항명</th><td>일정 등록 유효성 및 시간 중복 검사</td></tr>
+<tr><th>대 / 중 / 소분류</th><td>PORTAL / Schedule / Create</td></tr>
+<tr><th>우선순위</th><td>Medium</td></tr>
+<tr><th>진행현황</th><td>테스트중 (비고: 소스 역추출. 서비스만 존재.)</td></tr>
+<tr><th>요약</th><td>일정 등록 시 필수값(제목·시작·종료)과 시간 순서를 확인하고, 같은 소유자의 취소(9)되지 않은 일정과 시간이 겹치면 등록을 거부(null 반환)한다. 성공 시 예정(0)으로 저장하고 감사로그 <code>SCHEDULE CREATE</code>를 남긴다. 현재 REST API 는 없고 <code>ScheduleService.create</code> 서비스 메서드만 존재한다.</td></tr>
+</table>
+
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<pre class="raw">[개요]
+사용자가 일정을 등록할 때 필수값과 시간 순서를 확인하고, 본인의 다른 일정과 시간이 겹치면 등록하지 않는다.
+
+[상세 기능 요구사항]
+1) 제목 · 소유자 ID · 시작 시각 · 종료 시각 · 장소를 받아 일정을 등록한다.
+2) 제목이 비었거나, 시작 · 종료 시각이 없거나, 종료가 시작보다 앞서면 등록하지 않는다.
+3) 같은 소유자의 취소(9)되지 않은 일정과 시간이 겹치면(시작 &lt; 상대 종료 이고 상대 시작 &lt; 종료) 등록하지 않는다.
+4) 등록 직후 상태는 예정(0)이다.
+5) 등록 성공 시 감사로그 'SCHEDULE CREATE' 를 남긴다.
+
+[입력 / 출력]
+- 입력: 제목, 소유자 ID, 시작 시각, 종료 시각, 장소
+- 출력: 등록된 일정 또는 null(등록 거부), 감사로그 1줄
+
+[제약 조건 / 비기능 요구사항]
+- 거부 시 null 반환을 유지한다(현재 동작 보존). 거부 사유 응답은 REQ-NF-002 에서 다룬다.
+- 종료 시각 = 다른 일정 시작 시각처럼 맞닿는 경우는 겹침으로 보지 않는다.
+
+[검증 기준]
+- 10:00~11:00 일정이 있을 때 11:00~12:00 은 등록되고 10:30~11:30 은 거부된다.
+- 취소된 일정과 겹치는 시간은 등록된다.
+- 종료가 시작보다 앞서면 null 이 반환된다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\schedule (Schedule.isCreatable · overlaps · ScheduleService.create)
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</pre>
+
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표</h3>
+<table>
+<colgroup><col style="width:7%"><col style="width:24%"><col style="width:7%"><col style="width:20%"><col style="width:8%"><col style="width:34%"></colgroup><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead>
+<tr><td>상세 1</td><td>제목 · 소유자 ID · 시작 시각 · 종료 시각 · 장소를 받아 일정을 등록한다.</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:44-56</code>, <code>schedule/Schedule.java:76-85</code></td><td class="v-ok">충족</td><td><code>create(String title, Long ownerId, LocalDateTime startAt, LocalDateTime endAt, String location)</code>. 소유자 존재 여부는 확인하지 않음(레거시 동작, 특성화 테스트로 고정).</td></tr>
+<tr><td>상세 2</td><td>제목이 비었거나, 시작 · 종료 시각이 없거나, 종료가 시작보다 앞서면 등록하지 않는다.</td><td>SRS 없음</td><td><code>schedule/Schedule.java:61-69</code>, <code>schedule/ScheduleService.java:46-48</code></td><td class="v-ok">충족</td><td>제목 null·"" 거부(:62), 시각 null 거부(:65), <code>endAt.isBefore(startAt)</code>면 거부(:68). 공백 제목 " " 과 시작=종료(길이 0)는 통과 - 보존 대상.</td></tr>
+<tr><td>상세 3</td><td>같은 소유자의 취소(9)되지 않은 일정과 시간이 겹치면(시작 &lt; 상대 종료 이고 상대 시작 &lt; 종료) 등록하지 않는다.</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:49-51, 63-71</code>, <code>schedule/ScheduleRepository.java:7</code>, <code>schedule/Schedule.java:95-100</code></td><td class="v-ok">충족</td><td><code>findByOwnerId</code>로 같은 소유자만 조회, 취소(9)는 겹치지 않음(:96), 비교식 <code>startAt.isBefore(otherEndAt) &amp;&amp; otherStartAt.isBefore(endAt)</code>(:99). 루프는 중간 종료 없이 끝까지 확인(레거시 보존).</td></tr>
+<tr><td>상세 4</td><td>등록 직후 상태는 예정(0)이다.</td><td>SRS 없음</td><td><code>schedule/Schedule.java:23, 83</code></td><td class="v-ok">충족</td><td><code>PLANNED_STATUS = 0</code>. DB 에 정수 0 저장(특성화 테스트가 JDBC 로 확인).</td></tr>
+<tr><td>상세 5</td><td>등록 성공 시 감사로그 'SCHEDULE CREATE' 를 남긴다.</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:54</code></td><td class="v-ok">충족</td><td><code>auditLogger.write("SCHEDULE CREATE", schedule.getId(), ownerId)</code> - 저장 이후에만 호출, 거부 시 로그 없음.</td></tr>
+<tr><td>입력</td><td>입력: 제목, 소유자 ID, 시작 시각, 종료 시각, 장소</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:44-45</code></td><td class="v-ok">충족</td><td>파라미터 5개 일치.</td></tr>
+<tr><td>출력</td><td>출력: 등록된 일정 또는 null(등록 거부), 감사로그 1줄</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:47, 50, 54-55</code></td><td class="v-ok">충족</td><td>성공 시 저장된 <code>Schedule</code>, 거부 시 <code>null</code>(예외 없음).</td></tr>
+<tr><td>제약 1</td><td>거부 시 null 반환을 유지한다(현재 동작 보존). 거부 사유 응답은 REQ-NF-002 에서 다룬다.</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:46-51</code></td><td class="v-ok">충족</td><td>입력 오류·겹침 모두 원인 구분 없이 null. 사유 응답은 REQ-NF-002(재설계) 범위.</td></tr>
+<tr><td>제약 2</td><td>종료 시각 = 다른 일정 시작 시각처럼 맞닿는 경우는 겹침으로 보지 않는다.</td><td>SRS 없음</td><td><code>schedule/Schedule.java:99</code></td><td class="v-ok">충족</td><td>엄격 비교(<code>isBefore</code> = &lt;)라 맞닿음은 겹침 아님. 양방향 경계 테스트 존재.</td></tr>
+</table>
+<h3>3.2 판정 요약</h3>
+<p>충족 <b>9</b> / 부분 충족 <b>0</b> / 미충족 <b>0</b> / 불일치 <b>0</b> / 확인 불가 <b>0</b></p>
+
+<h2>4. 구성 요소 설계</h2>
+<table>
+<thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처 (현행 유지)</th></tr></thead>
+<tr><td><code>kr.hull.portal.schedule.ScheduleService</code> (@Service)</td><td>등록 흐름 조정: 입력 검증 → 겹침 검사 → 생성 → 저장 → 감사로그</td><td><code>public Schedule create(String title, Long ownerId, LocalDateTime startAt, LocalDateTime endAt, String location)</code><br><code>private boolean hasOverlappingSchedule(Long ownerId, LocalDateTime startAt, LocalDateTime endAt)</code></td></tr>
+<tr><td><code>kr.hull.portal.schedule.Schedule</code> (@Entity)</td><td>생성 규칙·겹침 판정을 스스로 판단 (Rich Domain)</td><td><code>public static boolean isCreatable(String title, LocalDateTime startAt, LocalDateTime endAt)</code><br><code>public static Schedule draft(String title, Long ownerId, LocalDateTime startAt, LocalDateTime endAt, String location)</code><br><code>public boolean overlaps(LocalDateTime otherStartAt, LocalDateTime otherEndAt)</code></td></tr>
+<tr><td><code>kr.hull.portal.schedule.ScheduleRepository</code></td><td>같은 소유자 일정 조회</td><td><code>List&lt;Schedule&gt; findByOwnerId(Long ownerId)</code></td></tr>
+<tr><td><code>kr.hull.portal.common.AuditLogger</code> (주입)</td><td>감사로그 기록 (REQ-IF-002)</td><td><code>void write(String action, Long id, Long userId)</code></td></tr>
+</table>
+<p>설계 제약: public 시그니처·반환 타입(null 반환 포함)은 CLAUDE.md 불변 규칙에 따라 변경하지 않는다. 의존성은 생성자 주입(<code>ScheduleRepository</code>, <code>UserRepository</code>, <code>AuditLogger</code>)을 유지한다.</p>
+
+<h2>5. 인터페이스 설계</h2>
+<p>현재 일정 등록 REST 엔드포인트는 <b>없다</b> (<code>src/main/java</code> 에 Schedule 컨트롤러 없음, 엑셀 비고 "서비스만 존재"). 외부 인터페이스는 아래 Java 서비스 계약이다.</p>
+<table>
+<thead><tr><th>구분</th><th>이름</th><th>타입</th><th>설명 / 예시</th></tr></thead>
+<tr><td>입력</td><td>title</td><td>String</td><td>"주간 회의" - null·"" 이면 거부</td></tr>
+<tr><td>입력</td><td>ownerId</td><td>Long</td><td>4 - 존재 확인 없음</td></tr>
+<tr><td>입력</td><td>startAt</td><td>LocalDateTime</td><td>2026-10-19T10:00 - null 이면 거부</td></tr>
+<tr><td>입력</td><td>endAt</td><td>LocalDateTime</td><td>2026-10-19T11:00 - null 이거나 startAt 보다 앞이면 거부</td></tr>
+<tr><td>입력</td><td>location</td><td>String</td><td>"회의실 A" - null 허용</td></tr>
+<tr><td>출력</td><td>반환값</td><td>Schedule 또는 null</td><td>성공: id·status=0 이 채워진 엔티티 / 거부: null</td></tr>
+<tr><td>부수효과</td><td>콘솔 감사로그</td><td>문자열 1줄</td><td><code>[AUDIT] [2026-10-17 09:30:00] SCHEDULE CREATE id=5 by=4</code></td></tr>
+</table>
+<p>오류 동작: 예외를 던지지 않고 null 을 반환한다(보존). REST API 신설 시에는 REQ-NF-002 의 오류 응답 형식을 따르는 별도 요구사항으로 다룬다.</p>
+
+<h2>6. 데이터 설계</h2>
+<table>
+<thead><tr><th>엔티티 / 테이블</th><th>컬럼</th><th>타입</th><th>비고</th></tr></thead>
+<tr><td rowspan="7"><code>Schedule</code> / <code>schedule</code></td><td>id</td><td>BIGINT (IDENTITY)</td><td>PK</td></tr>
+<tr><td>title</td><td>VARCHAR</td><td></td></tr>
+<tr><td>status</td><td>INT</td><td>0=예정 · 1=확정 · 9=취소 (DB 정수 그대로, enum 화 시 <code>@Convert</code>+<code>AttributeConverter</code>)</td></tr>
+<tr><td>owner_id</td><td>BIGINT</td><td>소유자(users.id), FK 제약 없음</td></tr>
+<tr><td>start_at</td><td>TIMESTAMP</td><td></td></tr>
+<tr><td>end_at</td><td>TIMESTAMP</td><td></td></tr>
+<tr><td>location</td><td>VARCHAR</td><td></td></tr>
+</table>
+<h3>상태 전이표</h3>
+<table>
+<thead><tr><th>현재</th><th>이벤트</th><th>다음</th><th>근거</th></tr></thead>
+<tr><td>(없음)</td><td>create 성공</td><td>0 예정</td><td><code>Schedule.java:83</code></td></tr>
+<tr><td>(없음)</td><td>create 거부</td><td>(저장 안 됨)</td><td><code>ScheduleService.java:46-51</code></td></tr>
+<tr><td>0 예정</td><td>confirm (REQ-F-012)</td><td>1 확정</td><td><code>Schedule.java:115</code></td></tr>
+<tr><td>-</td><td>취소 기능</td><td>9 취소</td><td>서비스 기능 없음 (setter 로만 가능)</td></tr>
+</table>
+<p>겹침 판정 대상: 상태 0·1 은 겹침 대상, 9 는 제외.</p>
+
+<h2>7. 처리 흐름</h2>
+<table>
+<thead><tr><th>순서</th><th>단계</th><th>처리</th><th>실패 시</th><th>소스</th></tr></thead>
+<tr><td>1</td><td>입력 가드</td><td><code>Schedule.isCreatable(title, startAt, endAt)</code></td><td>null 반환 (저장·로그 없음)</td><td><code>ScheduleService.java:46-48</code></td></tr>
+<tr><td>2</td><td>겹침 가드</td><td><code>findByOwnerId(ownerId)</code> 각 일정에 <code>overlaps(startAt, endAt)</code></td><td>null 반환 (저장·로그 없음)</td><td><code>ScheduleService.java:49-51, 63-71</code></td></tr>
+<tr><td>3</td><td>생성</td><td><code>Schedule.draft(...)</code> → status 0</td><td>-</td><td><code>ScheduleService.java:52</code></td></tr>
+<tr><td>4</td><td>저장</td><td><code>scheduleRepository.save(schedule)</code></td><td>-</td><td><code>ScheduleService.java:53</code></td></tr>
+<tr><td>5</td><td>감사로그</td><td><code>SCHEDULE CREATE id={id} by={ownerId}</code></td><td>-</td><td><code>ScheduleService.java:54</code></td></tr>
+<tr><td>6</td><td>반환</td><td>저장된 Schedule</td><td>-</td><td><code>ScheduleService.java:55</code></td></tr>
+</table>
+<p>메일 발송 없음.</p>
+
+<h2>8. 예외 · 경계 처리</h2>
+<table>
+<thead><tr><th>상황</th><th>현재 동작</th><th>레거시 보존 여부</th></tr></thead>
+<tr><td>제목 null / ""</td><td>null 반환</td><td>보존</td></tr>
+<tr><td>제목 공백 " "</td><td>등록됨</td><td>보존 (특성화 테스트 고정)</td></tr>
+<tr><td>시작 또는 종료 null</td><td>null 반환</td><td>보존</td></tr>
+<tr><td>종료 &lt; 시작</td><td>null 반환</td><td>보존</td></tr>
+<tr><td>종료 = 시작 (길이 0)</td><td>등록됨</td><td>보존</td></tr>
+<tr><td>맞닿음 (기존 끝 = 새 시작, 새 끝 = 기존 시작)</td><td>등록됨</td><td>보존</td></tr>
+<tr><td>기존 일정을 완전히 감쌈</td><td>null 반환</td><td>보존</td></tr>
+<tr><td>확정(1) 일정과 겹침</td><td>null 반환</td><td>보존</td></tr>
+<tr><td>취소(9) 일정과 겹침</td><td>등록됨</td><td>보존</td></tr>
+<tr><td>다른 소유자 일정과 겹침</td><td>등록됨</td><td>보존</td></tr>
+<tr><td>존재하지 않는 ownerId</td><td>등록됨 (존재 확인 없음)</td><td>보존 (개선 대상 후보)</td></tr>
+<tr><td>ownerId null</td><td>등록됨 (확정 시 NPE - REQ-F-012 참조)</td><td>보존 (개선 대상)</td></tr>
+</table>
+
+<h2>9. 검증 설계</h2>
+<table>
+<thead><tr><th>검증 기준 (F열)</th><th>고정 테스트</th></tr></thead>
+<tr><td>10:00~11:00 일정이 있을 때 11:00~12:00 은 등록되고 10:30~11:30 은 거부된다.</td><td><code>RequirementAcceptanceTest#열시_열한시_일정이_있으면_열한시_시작은_등록되고_열시반_시작은_거부된다</code><br>(보조) <code>ScheduleServiceCharacterizationTest#기존_끝과_새_시작이_맞닿으면_겹치지_않아_생성된다</code>, <code>#같은_소유자의_예정_일정과_겹치면_null을_돌려주고_저장하지_않는다</code></td></tr>
+<tr><td>취소된 일정과 겹치는 시간은 등록된다.</td><td><code>ScheduleServiceCharacterizationTest#취소_상태9_일정과는_겹쳐도_생성된다</code></td></tr>
+<tr><td>종료가 시작보다 앞서면 null 이 반환된다.</td><td><code>ScheduleServiceCharacterizationTest#끝이_시작보다_앞이면_null을_돌려준다</code></td></tr>
+</table>
+<p>상세 요구 보조 테스트: 상태 0 저장 <code>#일정을_생성하면_예정_상태0으로_입력값_그대로_저장된다</code>, 감사로그 <code>#일정을_생성하면_생성_감사로그가_남는다</code>, 필수값 <code>#제목이_null이면_null을_돌려주고_저장하지_않는다</code> · <code>#시작_시각이_null이면_null을_돌려준다</code> · <code>#끝_시각이_null이면_null을_돌려준다</code>.</p>
+<h3>추가 테스트 제안 (선택)</h3>
+<table>
+<thead><tr><th>제안 메서드명</th><th>내용 (변수는 영어)</th></tr></thead>
+<tr><td><code>겹쳐서_거부되면_생성_감사로그가_추가되지_않는다(CapturedOutput output)</code></td><td>기존 일정 생성 후 <code>int outputLengthBefore</code> 기록 → 겹치는 create → 이후 출력에 "SCHEDULE CREATE" 없음</td></tr>
+<tr><td><code>확정된_일정과_맞닿는_시간은_등록된다()</code></td><td>10~11시 생성·확정 후 <code>Schedule adjacentSchedule</code> 11~12시 등록 → not null</td></tr>
+</table>
+
+<h2>10. 검토 의견 · 후속 과제</h2>
+<table>
+<thead><tr><th>구분</th><th>내용</th></tr></thead>
+<tr class="keep"><td>보존 대상</td><td>public 시그니처 <code>create(...)</code>, 거부 시 null 반환(원인 구분 없음), 감사로그 문자열 <code>SCHEDULE CREATE id= by=</code>, DB 상태값 0/1/9 정수, 겹침 경계(엄격 &lt;), 공백 제목·길이 0 일정 허용, 소유자 존재 미확인.</td></tr>
+<tr class="improve"><td>개선 대상</td><td>(1) null 반환 → 거부 사유 반환(REQ-NF-002 재설계). (2) status 정수 상수 → <code>ScheduleStatus</code> enum + <code>AttributeConverter</code> (R07, DB값 유지). (3) 소유자 존재 확인·ownerId null 거부(동작 변경이므로 재설계 단계). (4) 겹침 검사를 DB 쿼리(<code>existsByOwnerIdAndStatusNotAndStartAtLessThanAndEndAtGreaterThan</code> 등)로 옮겨 전건 조회 제거 - 동작 동일성 검증 필요. (5) 일정 REST API 부재 - 화면 연동이 필요하면 별도 요구사항.</td></tr>
+<tr><td>연계 요구사항</td><td>REQ-F-012(일정 확정), REQ-NF-002(조용한 실패 → 오류 응답), REQ-IF-002(감사로그 형식)</td></tr>
+</table>
+</main>

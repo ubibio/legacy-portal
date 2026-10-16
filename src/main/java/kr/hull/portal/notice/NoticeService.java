@@ -5,8 +5,10 @@ import kr.hull.portal.common.MailFormat;
 import kr.hull.portal.common.MailSender;
 import kr.hull.portal.user.User;
 import kr.hull.portal.user.UserRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 
 /**
@@ -27,6 +29,8 @@ import java.time.LocalDateTime;
  *   null id 예외(findById(null)) - NoticeServiceCharacterizationTest 17개가 고정한다.
  * [리팩토링] 긴급공지 메일의 인사말 · 제목 양식 → common.MailFormat (결재 알림과의 유사 중복 제거, 문자열은 그대로)
  * [남은 것] status · category enum(R07) - 범위 밖 숫자를 거절하게 되면 동작 변경이라 보류 (REPORT.md 9장).
+ * [리팩토링 R13 · REQ-NF-004] 작성 시각 LocalDateTime.now() → LocalDateTime.now(clock) (주입받은 Clock · ApprovalService 와 같은 방식)
+ *   - 기존 4인자 생성자는 그대로(시스템 기본 Clock), Clock 을 받는 5인자 생성자 추가. 스프링은 Clock 빈 유무로 고른다.
  */
 @Service
 public class NoticeService {
@@ -38,18 +42,29 @@ public class NoticeService {
     // [리팩토링] 직접 new → 생성자 주입. 이름도 mail · audit → mailSender · auditLogger (타입이 하는 일을 드러냄)
     private final MailSender mailSender;
     private final AuditLogger auditLogger;
+    // [리팩토링 R13] 현재 시각의 출처 (common.ClockConfig)
+    private final Clock clock;
 
+    /** [보존] 기존 생성자 - 시스템 기본 Clock. Clock 빈이 없는 슬라이스 테스트용. */
+    @Autowired(required = false)
     public NoticeService(NoticeRepository noticeRepository, UserRepository userRepository,
                          MailSender mailSender, AuditLogger auditLogger) {
+        this(noticeRepository, userRepository, mailSender, auditLogger, Clock.systemDefaultZone());
+    }
+
+    @Autowired(required = false)
+    public NoticeService(NoticeRepository noticeRepository, UserRepository userRepository,
+                         MailSender mailSender, AuditLogger auditLogger, Clock clock) {
         this.noticeRepository = noticeRepository;
         this.userRepository = userRepository;
         this.mailSender = mailSender;
         this.auditLogger = auditLogger;
+        this.clock = clock;
     }
 
     /** 공지 생성 (임시). [리팩토링] 초기값 규칙(상태 0 · 생성 시각)은 Notice.draft 가 정한다. */
     public Notice create(String title, String content, int category, Long writerId, boolean pinned) {
-        Notice notice = Notice.draft(title, content, category, writerId, pinned, LocalDateTime.now());
+        Notice notice = Notice.draft(title, content, category, writerId, pinned, LocalDateTime.now(clock));
         noticeRepository.save(notice);
         auditLogger.write("NOTICE CREATE", notice.getId(), writerId);
         return notice;

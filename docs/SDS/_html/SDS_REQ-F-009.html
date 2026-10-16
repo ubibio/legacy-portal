@@ -1,0 +1,63 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="sds.css">
+<title>SDS - REQ-F-009 공지 작성(임시)</title>
+<main class="sds" data-id="REQ-F-009">
+<div class="cover"><h1>SDS - REQ-F-009 공지 작성(임시)</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<h2>1. 개요</h2>
+<table><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td>요구사항 ID</td><td>REQ-F-009</td></tr><tr><td>요구사항명</td><td>공지 작성(임시)</td></tr><tr><td>분류 (대/중/소)</td><td>PORTAL / Notice / Draft</td></tr><tr><td>우선순위</td><td>Medium</td></tr><tr><td>진행현황</td><td>테스트중</td></tr><tr><td>엑셀 비고</td><td>소스 역추출. 서비스만 존재.</td></tr><tr><td>요약</td><td>NoticeService.create(title, content, category, writerId, pinned) 가 Notice.draft 로 임시(0) 공지를 만들어 저장하고 감사로그 'NOTICE CREATE id={id} by={작성자}' 를 남긴다. REST API 는 없다(REQ-IF-003 범위). 모든 문장이 소스와 일치하고 검증 기준 2개가 테스트로 고정돼 있다.</td></tr><tr><td>분석 범위</td><td>SRS 없음 (엑셀 F열 · 소스만으로 분석). 소스 위치의 경로 접두 <code>src/main/java/kr/hull/portal/</code> 는 줄여 적는다 (화면은 <code>src/main/resources/static/</code>, 테스트는 <code>src/test/java/kr/hull/portal/</code>).</td></tr></tbody></table>
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<div class="raw">[개요]
+작성자가 일반 · 긴급 등 분류와 상단 고정 여부를 지정해 공지를 임시 상태로 작성한다.
+
+[상세 기능 요구사항]
+1) 제목 · 내용 · 분류(category) · 작성자 ID · 상단 고정(pinned)을 받아 공지를 만든다.
+2) 작성 직후 상태는 임시(0)이며 작성 시각을 기록한다.
+3) 작성 성공 시 감사로그 'NOTICE CREATE' 를 남긴다.
+
+[입력 / 출력]
+- 입력: 제목, 내용, 분류(2=긴급), 작성자 ID, 상단 고정 여부
+- 출력: 생성된 공지, 감사로그 1줄
+
+[제약 조건 / 비기능 요구사항]
+- DB 저장값(상태 0/1/9, 분류 코드)을 바꾸지 않는다.
+- 현재 공지에는 REST API 가 없고 서비스 계층만 있다. API 는 REQ-IF-003 에서 다룬다.
+
+[검증 기준]
+- 작성한 공지의 상태 표시명이 '임시' 다.
+- 감사로그 줄이 'NOTICE CREATE id={id} by={작성자}' 형식이다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\notice (Notice · NoticeService.create)
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</div>
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표 (F열 문장 ↔ 소스)</h3>
+<table><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치(파일:줄)</th><th>판정</th><th>비고</th></tr></thead><tbody><tr><td>상세 1</td><td>제목 · 내용 · 분류(category) · 작성자 ID · 상단 고정(pinned)을 받아 공지를 만든다.</td><td>SRS 없음</td><td><code>notice/NoticeService.java:66-67</code> · <code>notice/Notice.java:64-75</code></td><td><span class="v-ok">충족</span></td><td>입력값 검증 없음 - 그대로 저장.</td></tr><tr><td>상세 2</td><td>작성 직후 상태는 임시(0)이며 작성 시각을 기록한다.</td><td>SRS 없음</td><td><code>notice/Notice.java:23,70,73</code> · <code>notice/NoticeService.java:67</code></td><td><span class="v-ok">충족</span></td><td>작성 시각 = <code>LocalDateTime.now(clock)</code> (주입 Clock).</td></tr><tr><td>상세 3</td><td>작성 성공 시 감사로그 'NOTICE CREATE' 를 남긴다.</td><td>SRS 없음</td><td><code>notice/NoticeService.java:68-69</code> · <code>common/ConsoleAuditLogger.java:45-60</code></td><td><span class="v-ok">충족</span></td><td>저장 후 기록. 출력 <code>[AUDIT] [yyyy-MM-dd HH:mm:ss] NOTICE CREATE id={id} by={writerId}</code>.</td></tr><tr><td>입력</td><td>입력: 제목, 내용, 분류(2=긴급), 작성자 ID, 상단 고정 여부</td><td>SRS 없음</td><td><code>notice/NoticeService.java:66</code> · <code>notice/Notice.java:26</code></td><td><span class="v-ok">충족</span></td><td>분류 code: 1 일반 · 2 긴급 · 3 인사.</td></tr><tr><td>출력</td><td>출력: 생성된 공지, 감사로그 1줄</td><td>SRS 없음</td><td><code>notice/NoticeService.java:69-70</code></td><td><span class="v-ok">충족</span></td><td>메일은 보내지 않는다.</td></tr><tr><td>제약 1</td><td>DB 저장값(상태 0/1/9, 분류 코드)을 바꾸지 않는다.</td><td>SRS 없음</td><td><code>notice/Notice.java:34-35</code></td><td><span class="v-ok">충족</span></td><td>status · category 모두 int 컬럼 그대로 (enum 은 R07 보류).</td></tr><tr><td>제약 2</td><td>현재 공지에는 REST API 가 없고 서비스 계층만 있다. API 는 REQ-IF-003 에서 다룬다.</td><td>SRS 없음</td><td><code>notice/</code> 패키지 (Notice · NoticeRepository · NoticeService 3개)</td><td><span class="v-ok">충족</span></td><td>NoticeController 없음.</td></tr></tbody></table>
+<h3>3.2 판정 요약</h3>
+<p><span class="v-ok">충족 7</span> / <span class="v-part">부분 충족 0</span> / <span class="v-no">미충족 0</span> / <span class="v-diff">불일치 0</span> / <span class="v-unk">확인 불가 0</span></p>
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table><thead><tr><th>검증 기준(F열)</th><th>고정하는 테스트</th><th>비고</th></tr></thead><tbody><tr><td>작성한 공지의 상태 표시명이 '임시' 다.</td><td><code>RequirementAcceptanceTest#작성한_공지의_상태_표시명은_임시다</code></td><td></td></tr><tr><td>감사로그 줄이 'NOTICE CREATE id={id} by={작성자}' 형식이다.</td><td><code>NoticeServiceCharacterizationTest#공지를_생성하면_감사로그만_남고_메일은_나가지_않는다</code></td><td>줄 끝까지 비교 + 메일 없음.</td></tr></tbody></table>
+<h2>4. 구성 요소 설계</h2>
+<table><thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처</th><th>설계 방침</th></tr></thead><tbody><tr><td>NoticeService</td><td>생성 흐름(만들기 → 저장 → 감사로그)</td><td><code>public Notice create(String title, String content, int category, Long writerId, boolean pinned)</code></td><td>public 시그니처 현행 유지</td></tr><tr><td>Notice (entity)</td><td>생성 규칙(상태 0 · 작성 시각)</td><td><code>static Notice draft(String title, String content, int category, Long writerId, boolean pinned, LocalDateTime now)</code><br><code>String statusLabel()</code></td><td>현행 유지</td></tr><tr><td>AuditLogger / ConsoleAuditLogger</td><td>감사로그 형식 한 곳</td><td><code>void write(String action, Long id, Long userId)</code></td><td>문자열 1글자도 유지</td></tr><tr><td>NoticeRepository</td><td>저장</td><td><code>JpaRepository&lt;Notice, Long&gt;</code></td><td>현행 유지</td></tr></tbody></table>
+<h2>5. 인터페이스 설계</h2>
+<p>REST 엔드포인트 없음 (제약 2). 서비스 메서드 계약:</p><table><thead><tr><th>메서드</th><th>인자</th><th>반환</th><th>부수효과</th></tr></thead><tbody><tr><td><code>NoticeService.create</code></td><td>title: String, content: String, category: int(1 일반 · 2 긴급 · 3 인사), writerId: Long, pinned: boolean</td><td>Notice (id 채워짐, status 0)</td><td>감사로그 1줄, 메일 없음</td></tr></tbody></table><h3>감사로그 예시</h3><pre>[AUDIT] [2026-10-17 09:00:00] NOTICE CREATE id=1 by=2</pre><p>API 설계(POST /api/notices 초안, record DTO)는 REQ-IF-003 에서 다룬다.</p>
+<h2>6. 데이터 설계</h2>
+<table><thead><tr><th>컬럼 (notice)</th><th>타입</th><th>작성 시 값</th><th>비고</th></tr></thead><tbody><tr><td>id</td><td>BIGINT (IDENTITY)</td><td>자동</td><td></td></tr><tr><td>title</td><td>VARCHAR</td><td>입력값</td><td></td></tr><tr><td>content</td><td>VARCHAR</td><td>입력값</td><td></td></tr><tr><td>status</td><td>INT</td><td>0</td><td>0 임시 · 1 게시 · 9 내림 (정수 그대로)</td></tr><tr><td>category</td><td>INT</td><td>입력값</td><td>1 일반 · 2 긴급 · 3 인사 (범위 검증 없음)</td></tr><tr><td>writer_id</td><td>BIGINT</td><td>입력값</td><td>사용자 존재 확인 없음</td></tr><tr><td>pinned</td><td>BOOLEAN</td><td>입력값</td><td></td></tr><tr><td>created_at</td><td>TIMESTAMP</td><td>now(clock)</td><td></td></tr></tbody></table><h3>상태 전이 (공지)</h3><table><thead><tr><th>현재</th><th>이벤트</th><th>다음</th><th>요구사항</th></tr></thead><tbody><tr><td>(없음)</td><td>create</td><td>0 임시</td><td>REQ-F-009</td></tr><tr><td>0 임시</td><td>publish (팀장 이상)</td><td>1 게시</td><td>REQ-F-010</td></tr><tr><td>1 게시</td><td>(기능 없음)</td><td>9 내림</td><td>-</td></tr></tbody></table>
+<h2>7. 처리 흐름</h2>
+<table><thead><tr><th>단계</th><th>처리</th><th>조건 불만족 시</th><th>소스</th></tr></thead><tbody><tr><td>1</td><td><code>Notice.draft(...)</code> 로 상태 0 · 작성 시각 now(clock) 공지 생성</td><td>검증 없음</td><td><code>NoticeService.java:67</code> · <code>Notice.java:64-75</code></td></tr><tr><td>2</td><td><code>noticeRepository.save(notice)</code> (id 부여)</td><td>-</td><td><code>NoticeService.java:68</code></td></tr><tr><td>3</td><td>감사로그 <code>NOTICE CREATE id={id} by={writerId}</code></td><td>-</td><td><code>NoticeService.java:69</code></td></tr><tr><td>4</td><td>공지 반환 (메일 없음)</td><td>-</td><td><code>NoticeService.java:70</code></td></tr></tbody></table>
+<h2>8. 예외 · 경계 처리</h2>
+<table><thead><tr><th>경우</th><th>현재 동작</th><th>근거</th><th>레거시 보존 여부</th></tr></thead><tbody><tr><td>없는 작성자 ID</td><td>그대로 생성</td><td><code>NoticeServiceCharacterizationTest#작성자가_없는_사용자여도_생성된다</code></td><td>보존</td></tr><tr><td>사원이 작성</td><td>그대로 생성 (작성 권한 확인 없음)</td><td><code>Notice.java:62</code> 주석 · <code>NoticeService.java:66-71</code></td><td>보존</td></tr><tr><td>긴급(2) 공지 작성</td><td>메일 없음 - 메일은 게시 때만</td><td><code>NoticeServiceCharacterizationTest#공지를_생성하면_감사로그만_남고_메일은_나가지_않는다</code></td><td>보존</td></tr><tr><td>범위 밖 분류(예: 7) · 빈 제목</td><td>검증 없이 저장 (소스 기준, 테스트 없음)</td><td><code>Notice.java:64-75</code></td><td>보존</td></tr></tbody></table>
+<h2>9. 검증 설계</h2>
+<h3>9.1 검증 기준 ↔ 테스트 매핑</h3>
+<table><thead><tr><th>검증 기준</th><th>테스트(클래스#메서드)</th><th>판단</th></tr></thead><tbody><tr><td>상태 표시명 '임시'</td><td><code>RequirementAcceptanceTest#작성한_공지의_상태_표시명은_임시다</code></td><td>충분</td></tr><tr><td>감사로그 형식</td><td><code>NoticeServiceCharacterizationTest#공지를_생성하면_감사로그만_남고_메일은_나가지_않는다</code></td><td>충분</td></tr><tr><td>(보조) 상태 0 · 입력값 저장 · DB 0</td><td><code>NoticeServiceCharacterizationTest#공지를_생성하면_임시_상태0으로_입력값_그대로_저장된다</code></td><td>충분</td></tr></tbody></table>
+<h3>9.2 빠진 테스트 제안</h3>
+<p>기존 특성화 테스트 본문은 고치지 않고, 새 테스트로만 더한다 (메서드명 한글 시나리오, 필드 · 변수는 영어).</p>
+<table><thead><tr><th>제안 테스트 메서드</th><th>준비 · 실행 · 기대</th><th>넣을 곳</th></tr></thead><tbody><tr><td><code>범위_밖_분류_코드도_그대로_저장된다()</code></td><td>category 7 로 create → DB category 7, status 0 (현재 동작 고정 - R07 enum 도입 전 안전망)</td><td>NoticeServiceCharacterizationTest 옆 새 테스트 클래스</td></tr><tr><td><code>작성_시각은_주입된_Clock_시각이다()</code></td><td><code>Clock.fixed(...)</code> 로 NoticeService 생성 → createdAt == 고정 시각</td><td>ClockInjectionTest 와 같은 방식의 새 테스트</td></tr></tbody></table>
+<h2>10. 검토 의견 · 후속 과제</h2>
+<table><thead><tr><th>구분</th><th>내용</th></tr></thead><tbody><tr class="keep"><td>보존 대상</td><td>public <code>create</code> 시그니처(인자 5개), 상태 0 · 분류 정수 code DB 저장값, 감사로그 문자열 'NOTICE CREATE id={id} by={작성자}', 메일 없음.</td></tr><tr class="keep"><td>보존 대상</td><td>작성자 존재 · 권한 · 입력값 검증 없음 (레거시 동작).</td></tr><tr class="improve"><td>개선 대상</td><td>status · category 가 int - NoticeStatus · NoticeCategory enum + AttributeConverter (R07). 범위 밖 code 를 거절하면 동작 변경이므로 재설계 단계에서 결정.</td></tr><tr class="improve"><td>개선 대상</td><td>REST API 부재 → REQ-IF-003 에서 POST /api/notices (record DTO, 엔티티 직접 노출 금지).</td></tr><tr class="improve"><td>개선 대상</td><td>작성자 검증 · 필수값 검증은 재설계 단계(REQ-NF-002 오류 응답 형식과 함께).</td></tr></tbody></table>
+<p><b>연계 요구사항</b>: REQ-F-010 (게시), REQ-IF-003 (공지 · 일정 REST API), REQ-NF-002 (오류 응답)</p>
+</main>

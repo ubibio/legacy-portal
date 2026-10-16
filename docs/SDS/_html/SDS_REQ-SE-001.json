@@ -1,0 +1,10 @@
+{
+  "id": "REQ-SE-001",
+  "title": "DB 접속 정보 외부화",
+  "ok": 6,
+  "partial": 1,
+  "missing": 0,
+  "mismatch": 0,
+  "unknown": 0,
+  "notes": "부분: 비밀번호 portal1234 가 git 커밋 이력(HEAD)에 남아 있음. 환경변수 우선순위 자동 테스트 없음"
+}

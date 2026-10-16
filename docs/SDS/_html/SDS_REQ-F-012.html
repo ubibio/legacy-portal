@@ -1,0 +1,142 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="sds.css">
+<title>SDS - REQ-F-012</title>
+<div class="cover"><h1>SDS - REQ-F-012 일정 확정</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<main class="sds" data-id="REQ-F-012">
+
+<h2>1. 개요</h2>
+<table>
+<tr><th style="width:22%">요구사항 ID</th><td>REQ-F-012</td></tr>
+<tr><th>요구사항명</th><td>일정 확정</td></tr>
+<tr><th>대 / 중 / 소분류</th><td>PORTAL / Schedule / Confirm</td></tr>
+<tr><th>우선순위</th><td>Low</td></tr>
+<tr><th>진행현황</th><td>테스트중 (비고: 소스 역추출.)</td></tr>
+<tr><th>요약</th><td>일정 소유자 본인이 예정(0) 상태의 자기 일정을 확정(1)으로 바꾸고 감사로그 <code>SCHEDULE CONFIRM</code>을 남긴다. 조건이 맞지 않으면 예외 없이 무시한다. 단, 소유자가 null 인 일정은 NullPointerException 이 발생하는 레거시 결함이 있다.</td></tr>
+</table>
+
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). 아래는 요구사항정의서 F열(상세내용) 원문이다.</p>
+<pre class="raw">[개요]
+일정 소유자가 예정 상태의 자기 일정을 확정한다.
+
+[상세 기능 요구사항]
+1) 일정 ID 와 요청자 ID 로 확정을 처리한다.
+2) 요청자가 존재하고, 일정 소유자 본인이며, 일정이 예정(0) 상태일 때만 확정(1)으로 바꾼다.
+3) 확정 성공 시 감사로그 'SCHEDULE CONFIRM' 을 남긴다.
+
+[입력 / 출력]
+- 입력: 일정 ID, 요청자 ID
+- 출력: 상태 변경(0→1), 감사로그 1줄
+
+[제약 조건 / 비기능 요구사항]
+- 조건 불만족 시 조용히 무시한다(현재 동작 보존).
+- 현재 일정 취소(9)로 바꾸는 기능은 없다.
+
+[검증 기준]
+- 소유자가 아닌 사용자의 확정 요청은 상태를 바꾸지 않는다.
+- 이미 확정된 일정에 다시 요청해도 감사로그가 추가되지 않는다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\schedule (Schedule.confirm · ScheduleService.confirm)
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : backend-expert</pre>
+
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표</h3>
+<table>
+<colgroup><col style="width:7%"><col style="width:24%"><col style="width:7%"><col style="width:20%"><col style="width:8%"><col style="width:34%"></colgroup><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead>
+<tr><td>상세 1</td><td>일정 ID 와 요청자 ID 로 확정을 처리한다.</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:78</code></td><td class="v-ok">충족</td><td><code>public void confirm(Long id, Long userId)</code></td></tr>
+<tr><td>상세 2</td><td>요청자가 존재하고, 일정 소유자 본인이며, 일정이 예정(0) 상태일 때만 확정(1)으로 바꾼다.</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:79-89</code>, <code>schedule/Schedule.java:108-117</code></td><td class="v-ok">충족</td><td>일정 존재(:79-82) → 요청자 존재(:83-86) → <code>schedule.confirm(userId)</code>: 소유자 비교(Schedule:109) → 상태 0 확인(:112) → 1 로 변경(:115).</td></tr>
+<tr><td>상세 3</td><td>확정 성공 시 감사로그 'SCHEDULE CONFIRM' 을 남긴다.</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:90-91</code></td><td class="v-ok">충족</td><td>저장 후 <code>auditLogger.write("SCHEDULE CONFIRM", schedule.getId(), userId)</code>. confirm 이 false 면 도달하지 않음.</td></tr>
+<tr><td>입력</td><td>입력: 일정 ID, 요청자 ID</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:78</code></td><td class="v-ok">충족</td><td></td></tr>
+<tr><td>출력</td><td>출력: 상태 변경(0→1), 감사로그 1줄</td><td>SRS 없음</td><td><code>schedule/Schedule.java:115</code>, <code>schedule/ScheduleService.java:90-91</code></td><td class="v-ok">충족</td><td>반환값 void.</td></tr>
+<tr><td>제약 1</td><td>조건 불만족 시 조용히 무시한다(현재 동작 보존).</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java:80-89</code>, <code>schedule/Schedule.java:109</code></td><td class="v-part">부분 충족</td><td>없는 일정·없는 사용자·본인 아님·예정 아님은 무시. 그러나 소유자가 null 인 일정은 <code>ownerId.equals(requesterId)</code>(Schedule:109)에서 <b>NullPointerException</b> - 조용히 무시되지 않음. 레거시 결함으로 특성화 테스트가 고정(보존 대상).</td></tr>
+<tr><td>제약 2</td><td>현재 일정 취소(9)로 바꾸는 기능은 없다.</td><td>SRS 없음</td><td><code>schedule/ScheduleService.java</code> 전체, <code>schedule/Schedule.java:43</code></td><td class="v-ok">충족</td><td>서비스에 취소 메서드 없음. 9 는 public setter <code>setStatus</code>로만 설정 가능(테스트 준비용).</td></tr>
+</table>
+<h3>3.2 판정 요약</h3>
+<p>충족 <b>6</b> / 부분 충족 <b>1</b> / 미충족 <b>0</b> / 불일치 <b>0</b> / 확인 불가 <b>0</b></p>
+
+<h2>4. 구성 요소 설계</h2>
+<table>
+<thead><tr><th>클래스</th><th>책임</th><th>주요 메서드 시그니처 (현행 유지)</th></tr></thead>
+<tr><td><code>ScheduleService</code></td><td>확정 흐름: 조회 → 요청자 확인 → 엔티티에 확정 요청 → 저장 → 감사로그</td><td><code>public void confirm(Long id, Long userId)</code></td></tr>
+<tr><td><code>Schedule</code></td><td>확정 조건(소유자 본인·예정 상태) 판단 및 상태 변경</td><td><code>public boolean confirm(Long requesterId)</code> - 확정 시 true, 무변경 시 false</td></tr>
+<tr><td><code>UserRepository</code></td><td>요청자 존재 확인 (조회만, 권한 판단에는 사용하지 않음)</td><td><code>Optional&lt;User&gt; findById(Long id)</code></td></tr>
+<tr><td><code>AuditLogger</code></td><td>감사로그 (REQ-IF-002)</td><td><code>void write(String action, Long id, Long userId)</code></td></tr>
+</table>
+
+<h2>5. 인터페이스 설계</h2>
+<p>일정 확정 REST 엔드포인트는 <b>없다</b>. 외부 계약은 서비스 메서드다.</p>
+<table>
+<thead><tr><th>구분</th><th>이름</th><th>타입</th><th>설명 / 예시</th></tr></thead>
+<tr><td>입력</td><td>id</td><td>Long</td><td>일정 ID, 예: 5</td></tr>
+<tr><td>입력</td><td>userId</td><td>Long</td><td>요청자 ID, 예: 4</td></tr>
+<tr><td>출력</td><td>반환값</td><td>void</td><td>결과는 DB 상태(0→1)와 감사로그로만 관찰</td></tr>
+<tr><td>부수효과</td><td>콘솔 감사로그</td><td>문자열 1줄</td><td><code>[AUDIT] [2026-10-17 09:30:00] SCHEDULE CONFIRM id=5 by=4</code></td></tr>
+</table>
+<p>오류 동작: 조건 불만족은 예외 없이 무시(보존). 소유자 null 일정은 NullPointerException 이 호출자에게 전파(보존 대상 결함).</p>
+
+<h2>6. 데이터 설계</h2>
+<table>
+<thead><tr><th>테이블</th><th>컬럼</th><th>변경</th></tr></thead>
+<tr><td><code>schedule</code></td><td>status (INT)</td><td>0 → 1 만 변경. 다른 컬럼 변경 없음. DB 저장값 정수 그대로.</td></tr>
+</table>
+<h3>상태 전이표 (confirm)</h3>
+<table>
+<thead><tr><th>현재 상태</th><th>요청자</th><th>결과</th><th>감사로그</th></tr></thead>
+<tr><td>0 예정</td><td>소유자 본인</td><td>1 확정</td><td>있음</td></tr>
+<tr><td>0 예정</td><td>타인</td><td>0 유지</td><td>없음</td></tr>
+<tr><td>1 확정</td><td>소유자 본인</td><td>1 유지</td><td>없음</td></tr>
+<tr><td>9 취소</td><td>소유자 본인</td><td>9 유지</td><td>없음</td></tr>
+<tr><td>임의</td><td>존재하지 않는 사용자</td><td>유지</td><td>없음</td></tr>
+<tr><td>(일정 없음)</td><td>임의</td><td>-</td><td>없음</td></tr>
+<tr><td>임의 (ownerId null)</td><td>존재하는 사용자</td><td>NullPointerException</td><td>없음</td></tr>
+</table>
+
+<h2>7. 처리 흐름</h2>
+<table>
+<thead><tr><th>순서</th><th>단계</th><th>처리</th><th>실패 시</th><th>소스</th></tr></thead>
+<tr><td>1</td><td>일정 가드</td><td><code>scheduleRepository.findById(id)</code></td><td>return (무시)</td><td><code>ScheduleService.java:79-82</code></td></tr>
+<tr><td>2</td><td>요청자 가드</td><td><code>userRepository.findById(userId)</code></td><td>return (무시)</td><td><code>ScheduleService.java:83-86</code></td></tr>
+<tr><td>3</td><td>소유자·상태 가드 + 상태 변경</td><td><code>schedule.confirm(userId)</code> - 소유자 비교 → 상태 0 확인 → 1 로 변경</td><td>false → return (무시) / ownerId null → NPE</td><td><code>Schedule.java:108-117</code>, <code>ScheduleService.java:87-89</code></td></tr>
+<tr><td>4</td><td>저장</td><td><code>scheduleRepository.save(schedule)</code></td><td>-</td><td><code>ScheduleService.java:90</code></td></tr>
+<tr><td>5</td><td>감사로그</td><td><code>SCHEDULE CONFIRM id={id} by={userId}</code></td><td>-</td><td><code>ScheduleService.java:91</code></td></tr>
+</table>
+<p>메일 발송 없음.</p>
+
+<h2>8. 예외 · 경계 처리</h2>
+<table>
+<thead><tr><th>상황</th><th>현재 동작</th><th>레거시 보존 여부</th></tr></thead>
+<tr><td>없는 일정 ID</td><td>예외 없이 무시</td><td>보존</td></tr>
+<tr><td>없는 사용자</td><td>예외 없이 무시, 상태 유지</td><td>보존</td></tr>
+<tr><td>소유자 아님</td><td>예외 없이 무시, 상태 유지</td><td>보존 (REQ-NF-002 에서 403 후보)</td></tr>
+<tr><td>이미 확정 / 취소 상태</td><td>무시, 감사로그 추가 없음</td><td>보존 (REQ-NF-002 에서 409 후보)</td></tr>
+<tr><td>소유자 null 일정</td><td>NullPointerException</td><td>보존 (결함, 재설계 대상)</td></tr>
+<tr><td>id 또는 userId 가 null</td><td>Spring Data <code>findById(null)</code> 이 예외를 던질 것으로 보이나 테스트로 확인되지 않음</td><td>확인 불가 (본 요구사항 판정에는 미포함)</td></tr>
+</table>
+
+<h2>9. 검증 설계</h2>
+<table>
+<thead><tr><th>검증 기준 (F열)</th><th>고정 테스트</th></tr></thead>
+<tr><td>소유자가 아닌 사용자의 확정 요청은 상태를 바꾸지 않는다.</td><td><code>ScheduleServiceCharacterizationTest#소유자가_아닌_사용자가_확정하면_조용히_무시된다</code></td></tr>
+<tr><td>이미 확정된 일정에 다시 요청해도 감사로그가 추가되지 않는다.</td><td><code>ScheduleServiceCharacterizationTest#이미_확정된_일정을_다시_확정하면_무시되고_로그도_한번만_남는다</code></td></tr>
+</table>
+<p>보조 테스트: <code>#소유자가_예정_일정을_확정하면_상태1로_저장되고_감사로그가_남는다</code>, <code>#취소_상태9_일정은_확정되지_않는다</code>, <code>#없는_일정_id로_확정하면_예외없이_무시된다</code>, <code>#없는_사용자가_확정하면_예외없이_무시된다</code>, <code>#소유자가_null인_일정을_확정하면_NullPointerException이_난다</code>.</p>
+<h3>추가 테스트 제안</h3>
+<table>
+<thead><tr><th>제안 메서드명</th><th>내용 (변수는 영어)</th></tr></thead>
+<tr><td><code>없는_사용자가_확정하면_감사로그가_남지_않는다(CapturedOutput output)</code></td><td><code>Schedule schedule</code> 생성 → <code>confirm(schedule.getId(), MISSING_ID)</code> → 출력에 "SCHEDULE CONFIRM" 없음</td></tr>
+<tr><td><code>취소된_일정을_확정해도_감사로그가_남지_않는다(CapturedOutput output)</code></td><td>상태 9 준비 후 confirm → "SCHEDULE CONFIRM" 없음</td></tr>
+</table>
+
+<h2>10. 검토 의견 · 후속 과제</h2>
+<table>
+<thead><tr><th>구분</th><th>내용</th></tr></thead>
+<tr class="keep"><td>보존 대상</td><td>public 시그니처 <code>confirm(Long id, Long userId)</code>, 조건 불만족 시 조용히 무시, 검사 순서(일정 → 사용자 → 소유자 → 상태), 감사로그 문자열, DB 상태값 0/1/9, 소유자 null 일정의 NullPointerException(특성화 테스트 고정).</td></tr>
+<tr class="improve"><td>개선 대상</td><td>(1) [부분 충족 설계안] 소유자 null 비교를 <code>Objects.equals(ownerId, requesterId)</code>로 바꾸면 "조용히 무시" 제약과 일치하나 관찰 가능한 동작(예외 → 무시)이 바뀌므로 리팩토링이 아닌 재설계 단계에서 특성화 테스트 기대값 변경과 함께 별도 커밋으로 처리. (2) 무시 분기를 사유 있는 오류로(REQ-NF-002: 없음 404 · 권한 403 · 상태 409). (3) 일정 취소(0/1→9) 기능 신설은 별도 요구사항. (4) <code>ScheduleStatus</code> enum(R07).</td></tr>
+<tr><td>연계 요구사항</td><td>REQ-F-011(일정 등록), REQ-NF-002(오류 응답), REQ-IF-002(감사로그)</td></tr>
+</table>
+</main>

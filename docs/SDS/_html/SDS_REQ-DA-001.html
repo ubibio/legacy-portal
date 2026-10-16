@@ -1,0 +1,97 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="sds.css">
+<title>SDS - REQ-DA-001</title>
+<main class="sds" data-id="REQ-DA-001">
+<div class="cover"><h1>SDS - REQ-DA-001 코드값 DB 저장값 보존</h1><div class="meta">작성일 2026-10-17 · 근거: 요구사항정의서_엑셀양식_v3_1_3.xlsx (F열) · SRS 없음 · 대상: D:\legacy-portal</div></div>
+<h2>1. 개요</h2>
+<table><colgroup><col style="width:20%"><col style="width:80%"></colgroup><thead><tr><th>항목</th><th>내용</th></tr></thead><tbody><tr><td>요구사항 ID</td><td>REQ-DA-001</td></tr><tr><td>요구사항명</td><td>코드값 DB 저장값 보존</td></tr><tr><td>대 / 중 / 소분류</td><td>PORTAL / Data / Code</td></tr><tr><td>우선순위</td><td>High</td></tr><tr><td>진행현황</td><td>테스트중</td></tr><tr><td>수용여부 · 요청자</td><td>수용 · 포털팀 (미정)</td></tr><tr><td>엑셀 비고</td><td>소스 역추출.</td></tr><tr><td>요약</td><td>결재 · 공지 · 일정 · 사용자의 숫자 코드 저장값을 레거시 정수 그대로 유지한다. 결재 상태만 enum(ApprovalStatus)으로 바뀌었고 ApprovalStatusConverter 가 정수 code(0/1/2/3/9)로 저장한다. 나머지 코드(type · priority · 공지 status · category · 일정 status · role)는 int 필드 그대로라 저장값이 바뀌지 않았다. F열 문장은 소스에서 모두 확인된다.</td></tr></tbody></table>
+<h2>2. 근거</h2>
+<p>SRS 없음 (엑셀 F열 · 소스만으로 분석). docs\SRS 폴더가 존재하지 않아 아래 F열 상세내용 원문과 D:\legacy-portal 소스(src\main · src\test) · CLAUDE.md 불변 규칙만을 근거로 삼는다.</p>
+<div class="raw">[개요]
+결재 · 공지 · 일정 · 사용자의 숫자 코드 저장값을 현재 값 그대로 유지하여 기존 데이터와 호환한다.
+
+[상세 기능 요구사항]
+1) 결재 상태: 0=임시저장 1=상신 2=승인 3=반려 9=취소. ApprovalStatusConverter 로 정수 컬럼에 저장한다.
+2) 결재 처리 구분(action): 1=상신 2=승인 3=반려 9=취소. API 계약 값이다.
+3) 결재 유형 1~4, 우선순위 1~3, 공지 상태 0/1/9 · 분류(2=긴급), 일정 상태 0/1/9, 사용자 직급 1~3 을 유지한다.
+4) 정의되지 않은 결재 상태 코드를 읽으면 예외를 낸다.
+
+[입력 / 출력]
+- 입력: 엔티티 저장 · 조회
+- 출력: 정수 코드 컬럼
+
+[제약 조건 / 비기능 요구사항]
+- enum 의 순서 번호(@Enumerated ORDINAL)로 저장하지 않는다. 9 가 4 로 어긋난다.
+- 코드 값 · 의미를 바꾸지 않는다.
+
+[검증 기준]
+- 취소된 결재를 JDBC 로 직접 읽으면 status 컬럼이 9 다(ApprovalStatusPersistenceTest).
+- 응답 JSON 의 status 가 문자열이 아닌 정수다.
+
+[작업 대상]
+legacy-portal (D:\legacy-portal) Spring Boot 3.2 / Java 21
+src\main\java\kr\hull\portal\approval (ApprovalStatus · ApprovalStatusConverter · ApprovalAction)
+src\main\java\kr\hull\portal\notice
+src\main\java\kr\hull\portal\schedule
+src\main\java\kr\hull\portal\user
+
+[Worker Settings]
+- MainWorker          : claude-main
+- SubWorker           : codex-critic
+- MainWorker-SubAgent : database-expert</div>
+<h2>3. 분석 결과</h2>
+<h3>3.1 추적표 (F열 문장 ↔ 소스)</h3>
+<table><colgroup><col style="width:8%"><col style="width:26%"><col style="width:7%"><col style="width:29%"><col style="width:9%"><col style="width:21%"></colgroup><thead><tr><th>항목</th><th>요구사항(F열 문장)</th><th>SRS 근거</th><th>소스 위치</th><th>판정</th><th>비고</th></tr></thead><tbody><tr><td>기능 1</td><td>결재 상태: 0=임시저장 1=상신 2=승인 3=반려 9=취소. ApprovalStatusConverter 로 정수 컬럼에 저장한다.</td><td>SRS 없음</td><td>ApprovalStatus.java:17-21 (DRAFT 0 · SUBMITTED 1 · APPROVED 2 · REJECTED 3 · CANCELED 9), Approval.java:51-53 (@Convert(converter = ApprovalStatusConverter.class) @Column(nullable = false)), ApprovalStatusConverter.java:17-19 convertToDatabaseColumn → getCode()</td><td><span class="v-ok">충족</span></td><td>라벨(임시저장 · 상신 · 승인 · 반려 · 취소)도 enum 에 있음</td></tr><tr><td>기능 2</td><td>결재 처리 구분(action): 1=상신 2=승인 3=반려 9=취소. API 계약 값이다.</td><td>SRS 없음</td><td>ApprovalAction.java:15-18 (SUBMIT 1 · APPROVE 2 · REJECT 3 · CANCEL 9), ProcessRequest.java:15 Integer action, ApprovalService.java:124-133 fromCode → switch</td><td><span class="v-ok">충족</span></td><td>정의 밖 action 은 Optional.empty → 조용히 무시(ApprovalAction.java:31-38) - 저장값이 아니라 API 입력값</td></tr><tr><td>기능 3</td><td>결재 유형 1~4, 우선순위 1~3, 공지 상태 0/1/9 · 분류(2=긴급), 일정 상태 0/1/9, 사용자 직급 1~3 을 유지한다.</td><td>SRS 없음</td><td>Approval.java:48 int type · :54 int priority · :36-37 상수(유형 1 지출 · 우선순위 3 높음), Notice.java:34-35 int status · category, :23-26 상수(0 · 1 · 9 · 분류 2 긴급), Schedule.java:32 int status, :23-25 상수(0 · 1 · 9), User.java:27 int role, :30 TEAM_LEADER_ROLE 2</td><td><span class="v-ok">충족</span></td><td>int 필드라 JPA 가 정수 그대로 저장. 범위 검증은 없음(1~4 밖 값도 저장됨 → REQ-DA-003)</td></tr><tr><td>기능 4</td><td>정의되지 않은 결재 상태 코드를 읽으면 예외를 낸다.</td><td>SRS 없음</td><td>ApprovalStatus.java:45-51 fromCode → IllegalArgumentException(&quot;정의되지 않은 결재 상태 code: &quot; + code), ApprovalStatusConverter.java:22-24 convertToEntityAttribute → fromCode</td><td><span class="v-ok">충족</span></td><td>DB 에서 읽을 때도 converter 가 fromCode 를 거쳐 예외. null 은 null 반환(컬럼은 NOT NULL)</td></tr><tr><td>입력</td><td>입력: 엔티티 저장 · 조회</td><td>SRS 없음</td><td>ApprovalRepository · NoticeRepository · ScheduleRepository · UserRepository (JpaRepository)</td><td><span class="v-ok">충족</span></td><td></td></tr><tr><td>출력</td><td>출력: 정수 코드 컬럼</td><td>SRS 없음</td><td>ApprovalStatusPersistenceTest.java:47-50 JDBC 로 status 컬럼 직접 조회 → 0 · 2 · 9</td><td><span class="v-ok">충족</span></td><td>결재 status 만 JDBC 로 확인됨. 나머지 컬럼은 int 매핑으로 확인(테스트 없음)</td></tr><tr><td>제약 1</td><td>enum 의 순서 번호(@Enumerated ORDINAL)로 저장하지 않는다. 9 가 4 로 어긋난다.</td><td>SRS 없음</td><td>src\main 전체 Grep 결과 @Enumerated 사용 0건, @Convert 는 Approval.java:51 1건</td><td><span class="v-ok">충족</span></td><td>ApprovalStatus.java:9-10 주석에 금지 사유 명시</td></tr><tr><td>제약 2</td><td>코드 값 · 의미를 바꾸지 않는다.</td><td>SRS 없음</td><td>ApprovalStatus.java:17-21 code · 라벨이 레거시 statusLabel 과 동일(ApprovalServiceSafetyNetTest#상태_코드별_라벨을_돌려준다), Notice.java:105-110 0 임시 · 1 게시 · 9 내림</td><td><span class="v-ok">충족</span></td><td></td></tr></tbody></table>
+<h3>3.2 판정 요약</h3>
+<p>충족 8 / 부분 충족 0 / 미충족 0 / 불일치 0 / 확인 불가 0 (총 8건)</p>
+<h3>3.3 검증 기준 ↔ 테스트</h3>
+<table><colgroup><col style="width:30%"><col style="width:45%"><col style="width:25%"></colgroup><thead><tr><th>검증 기준(F열)</th><th>고정하는 테스트</th><th>비고</th></tr></thead><tbody><tr><td>취소된 결재를 JDBC 로 직접 읽으면 status 컬럼이 9 다(ApprovalStatusPersistenceTest).</td><td>ApprovalStatusPersistenceTest#취소된_결재는_DB에_순번_4가_아니라_정수_9로_저장된다 (보조: #임시저장_결재는_DB에_정수_0으로_저장된다, #승인된_결재는_DB에_정수_2로_저장된다)</td><td>2026-10-17 실행 3개 통과</td></tr><tr><td>응답 JSON 의 status 가 문자열이 아닌 정수다.</td><td>ApprovalControllerTest#결재_생성_응답은_필드_12개의_레거시_JSON이다 (jsonPath(&quot;$.status&quot;).value(0)), ApprovalControllerTest#처리_API는_200과_빈_본문을_돌려주고_상신이_반영된다 (status 1)</td><td>value(0) 은 문자열 &quot;0&quot; 이면 실패하므로 정수 형식을 고정함. isNumber() 로 명시하면 더 분명</td></tr><tr><td>(기능 4 보조) 정의되지 않은 결재 상태 코드</td><td>RequirementAcceptanceTest#정의되지_않은_결재_상태_코드를_읽으면_예외가_난다 (fromCode(4) 직접 호출)</td><td>converter 경유(DB 값 4 를 읽을 때) 테스트는 없음</td></tr></tbody></table>
+<h2>4. 구성 요소 설계</h2>
+<table><thead><tr><th>구성 요소</th><th>책임</th><th>주요 메서드(현행 유지)</th></tr></thead><tbody><tr><td>ApprovalStatus (enum)</td><td>결재 상태 code · 라벨 보유, code → enum 변환</td><td>int getCode() · String getLabel() · static ApprovalStatus fromCode(int code)</td></tr><tr><td>ApprovalStatusConverter</td><td>enum ↔ DB 정수 변환 (JPA AttributeConverter)</td><td>Integer convertToDatabaseColumn(ApprovalStatus) · ApprovalStatus convertToEntityAttribute(Integer)</td></tr><tr><td>ApprovalAction (enum)</td><td>API action code 해석</td><td>int getCode() · static Optional&lt;ApprovalAction&gt; fromCode(int code)</td></tr><tr><td>Approval (엔티티)</td><td>status 를 enum 으로 보관, 외부에는 int 로 노출</td><td>int getStatus() · void setStatus(int) · ApprovalStatus approvalStatus() · void changeStatus(ApprovalStatus)</td></tr><tr><td>Notice · Schedule · User (엔티티)</td><td>코드 필드를 int 로 보관</td><td>int getStatus()/getCategory()/getRole() · setter (특성화 테스트가 사용 - 시그니처 유지)</td></tr><tr><td>ApprovalResponse (record)</td><td>응답 JSON 에 status · type · priority 를 정수로</td><td>static ApprovalResponse from(Approval)</td></tr></tbody></table>
+<p>설계 결정: 엔티티의 public getStatus() 는 int 를 돌려주고, enum 접근은 get/set 접두가 없는 approvalStatus() · changeStatus() 로 분리한다 (Approval.java:71-75). 이렇게 해야 JSON 직렬화 필드 · 특성화 테스트 계약이 그대로다.</p>
+<h2>5. 인터페이스 설계</h2>
+<p>이 요구사항은 새 인터페이스를 만들지 않는다. 기존 API 에서 코드값이 오가는 지점만 정리한다.</p>
+<table><thead><tr><th>API</th><th>필드</th><th>방향</th><th>타입 · 값</th></tr></thead><tbody><tr><td>POST /api/approvals</td><td>type · priority</td><td>요청 · 응답</td><td>정수 (1~4 · 1~3)</td></tr><tr><td>POST /api/approvals · GET /drafts/{userId} · GET /inbox/{userId}</td><td>status</td><td>응답</td><td>정수 0/1/2/3/9 (ApprovalResponse.java:21)</td></tr><tr><td>POST /api/approvals/{id}/process</td><td>action</td><td>요청</td><td>정수 1/2/3/9, 그 밖은 무시 → 200 + 빈 본문</td></tr><tr><td>GET /api/users</td><td>role</td><td>응답</td><td>정수 1~3 (User 엔티티 직접 직렬화)</td></tr></tbody></table>
+<pre>// 응답 예 - status 는 문자열 &quot;DRAFT&quot; 가 아니라 정수
+{&quot;id&quot;:1,&quot;title&quot;:&quot;노트북 구매&quot;,&quot;content&quot;:&quot;개발용 노트북&quot;,&quot;type&quot;:1,&quot;status&quot;:0,&quot;priority&quot;:2,
+ &quot;drafterId&quot;:1,&quot;approverId&quot;:2,&quot;rejectReason&quot;:null,&quot;amount&quot;:1200000,
+ &quot;createdAt&quot;:&quot;2026-10-17T09:00:00&quot;,&quot;updatedAt&quot;:&quot;2026-10-17T09:00:00&quot;}</pre>
+<h2>6. 데이터 설계</h2>
+<table><thead><tr><th>엔티티(테이블)</th><th>컬럼</th><th>Java 타입</th><th>매핑</th><th>DB 저장값</th><th>의미</th></tr></thead><tbody><tr><td>Approval (approval)</td><td>status</td><td>ApprovalStatus</td><td>@Convert(ApprovalStatusConverter) NOT NULL</td><td>0 · 1 · 2 · 3 · 9</td><td>임시저장 · 상신 · 승인 · 반려 · 취소</td></tr><tr><td></td><td>type</td><td>int</td><td>기본 매핑</td><td>1 · 2 · 3 · 4</td><td>지출 · 휴가 · 구매 · 기타</td></tr><tr><td></td><td>priority</td><td>int</td><td>기본 매핑</td><td>1 · 2 · 3</td><td>낮음 · 보통 · 높음</td></tr><tr><td>Notice (notice)</td><td>status</td><td>int</td><td>기본 매핑</td><td>0 · 1 · 9</td><td>임시 · 게시 · 내림</td></tr><tr><td></td><td>category</td><td>int</td><td>기본 매핑</td><td>1 · 2 · 3</td><td>일반 · 긴급 · 인사</td></tr><tr><td>Schedule (schedule)</td><td>status</td><td>int</td><td>기본 매핑</td><td>0 · 1 · 9</td><td>예정 · 확정 · 취소</td></tr><tr><td>User (users)</td><td>role</td><td>int</td><td>기본 매핑</td><td>1 · 2 · 3</td><td>사원 · 팀장 · 임원</td></tr><tr><td>(API 값, 저장 안 함)</td><td>action</td><td>int → ApprovalAction</td><td>-</td><td>1 · 2 · 3 · 9</td><td>상신 · 승인 · 반려 · 취소</td></tr></tbody></table>
+<h3>결재 상태 전이표 (DB 정수 기준)</h3>
+<table><thead><tr><th>현재</th><th>action</th><th>조건</th><th>다음</th><th>근거</th></tr></thead><tbody><tr><td>0</td><td>1 상신</td><td>-</td><td>1 (지출 · 100만원 이상이면 priority 3)</td><td>Approval.java:123-133</td></tr><tr><td>1</td><td>2 승인</td><td>지정 결재자 + role ≥ 2</td><td>2</td><td>Approval.java:136-143 · 189-193</td></tr><tr><td>1</td><td>3 반려</td><td>지정 결재자 + role ≥ 2</td><td>3 (사유 저장)</td><td>Approval.java:146-154</td></tr><tr><td>0 · 1</td><td>9 취소</td><td>기안자 본인</td><td>9</td><td>Approval.java:157-167</td></tr><tr><td>2 · 3 · 9</td><td>모든 action</td><td>-</td><td>변화 없음(조용히 무시)</td><td>ApprovalProcessCharacterizationTest</td></tr></tbody></table>
+<p>순번 저장이었다면 CANCELED 는 4 가 되어 기존 데이터의 9 와 어긋난다. 4~8 은 비어 있는 code 이며 그대로 둔다.</p>
+<h2>7. 처리 흐름</h2>
+<table><thead><tr><th>단계</th><th>저장(쓰기)</th><th>조회(읽기)</th></tr></thead><tbody><tr><td>1</td><td>서비스가 approval.changeStatus(enum) 또는 도메인 메서드로 상태 변경</td><td>JPA 가 status 정수 컬럼을 읽음</td></tr><tr><td>2</td><td>JPA flush 시 ApprovalStatusConverter.convertToDatabaseColumn → getCode()</td><td>convertToEntityAttribute(Integer) → ApprovalStatus.fromCode</td></tr><tr><td>3</td><td>정수 0/1/2/3/9 가 컬럼에 기록</td><td>정의 밖 code 면 IllegalArgumentException (엔티티 로드 실패)</td></tr><tr><td>4</td><td>응답 시 ApprovalResponse.from → approval.getStatus() 가 int code</td><td>-</td></tr></tbody></table>
+<h2>8. 예외 · 경계 처리</h2>
+<table><thead><tr><th>경계 · 예외</th><th>현재 동작</th><th>레거시 보존 여부</th></tr></thead><tbody><tr><td>DB 에 정의 밖 status(예 4) 존재</td><td>읽는 순간 IllegalArgumentException</td><td>레거시(int)는 그대로 읽혔음 - 레거시에 4 를 만드는 경로가 없어 관찰 가능한 차이 없음(ApprovalStatus.java:43)</td></tr><tr><td>setStatus(정의 밖 int)</td><td>IllegalArgumentException</td><td>레거시는 그대로 저장 - 운영 코드에서 호출 경로 없음, 특성화 테스트는 정의된 값만 사용</td></tr><tr><td>status null</td><td>converter 는 null 반환, 컬럼 NOT NULL 이라 저장 실패</td><td>레거시 int 는 null 불가 - 동등</td></tr><tr><td>action 4~8 · 0 · 음수</td><td>Optional.empty → 조용히 무시</td><td>보존 (ApprovalProcessCharacterizationTest#정의되지_않은_action_0_4_8_10_음수는_모두_예외없이_무시된다)</td></tr><tr><td>type 5 · priority 7 등 범위 밖 값</td><td>그대로 저장</td><td>보존 (거절은 REQ-DA-003 · REQ-NF-003)</td></tr></tbody></table>
+<h2>9. 검증 설계</h2>
+<table><thead><tr><th>검증 기준</th><th>매핑 테스트</th><th>빠진 테스트 제안</th></tr></thead><tbody><tr><td>취소 결재 JDBC status = 9</td><td>ApprovalStatusPersistenceTest#취소된_결재는_DB에_순번_4가_아니라_정수_9로_저장된다</td><td>-</td></tr><tr><td>응답 status 정수</td><td>ApprovalControllerTest#결재_생성_응답은_필드_12개의_레거시_JSON이다</td><td>-</td></tr><tr><td>정의 밖 상태 code 예외</td><td>RequirementAcceptanceTest#정의되지_않은_결재_상태_코드를_읽으면_예외가_난다</td><td>CodeValuePersistenceTest#DB의_결재_상태가_4이면_조회할_때_예외가_난다 (JDBC 로 4 를 넣고 findById)</td></tr><tr><td>나머지 코드 컬럼 정수 유지</td><td>테스트 없음</td><td>CodeValuePersistenceTest#공지_상태와_분류는_DB에_정수_그대로_저장된다, #일정_상태는_DB에_정수_그대로_저장된다, #사용자_직급은_DB에_정수_그대로_저장된다, #결재_유형과_우선순위는_DB에_정수_그대로_저장된다</td></tr></tbody></table>
+<pre>@DataJpaTest
+class CodeValuePersistenceTest {
+    @Autowired
+    private NoticeRepository noticeRepository;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private EntityManager entityManager;
+
+    @Test
+    void 공지_상태와_분류는_DB에_정수_그대로_저장된다() {
+        Notice notice = noticeRepository.save(Notice.draft(&quot;점검&quot;, &quot;본문&quot;, 2, 1L, false, LocalDateTime.of(2026, 10, 17, 9, 0)));
+        notice.setStatus(9);
+        entityManager.flush();
+
+        Map&lt;String, Object&gt; storedRow = jdbcTemplate.queryForMap(
+                &quot;select status, category from notice where id = ?&quot;, notice.getId());
+        assertThat(storedRow.get(&quot;STATUS&quot;)).isEqualTo(9);
+        assertThat(storedRow.get(&quot;CATEGORY&quot;)).isEqualTo(2);
+    }
+}</pre>
+<p>REQ-DA-003 으로 enum 전환할 때 위 테스트가 &#x27;전환 전후 컬럼 값 동일&#x27;의 안전망이 된다. 따라서 전환 전에 먼저 만들어 둔다.</p>
+<h2>10. 검토 의견 · 후속 과제</h2>
+<h3>보존 대상</h3>
+<ul class="keep"><li>DB 저장값: 결재 status 0/1/2/3/9, type 1~4, priority 1~3, 공지 status 0/1/9 · category 1/2/3, 일정 status 0/1/9, 사용자 role 1~3</li><li>API 정수 code: action 1/2/3/9, 응답 status · type · priority · role 정수</li><li>public getStatus() int 반환 · setStatus(int) 시그니처 (특성화 테스트 계약)</li><li>정의 밖 action 조용히 무시</li></ul>
+<h3>개선 대상 (차후)</h3>
+<ul class="improve"><li>type · priority · 공지 status · category · 일정 status · role 의 enum 전환과 범위 밖 값 거절 - REQ-DA-003 (+ REQ-NF-003 입력 검증)</li><li>나머지 코드 컬럼에 대한 JDBC 직접 조회 특성화 테스트 부재 - 전환 전 추가 권장</li><li>응답 JSON 정수 형식은 value(0) 비교로 간접 고정 - jsonPath(&quot;$.status&quot;).isNumber() 로 명시 권장(새 테스트로 추가, 기존 테스트 본문은 수정하지 않음)</li></ul>
+<p>연계 요구사항: REQ-DA-003(나머지 코드 enum 전환), REQ-NF-001(API 계약 보존), REQ-NF-003(입력 검증).</p>
+</main>
