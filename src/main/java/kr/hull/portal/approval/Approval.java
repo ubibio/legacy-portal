@@ -90,6 +90,31 @@ public class Approval {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
+    // ── [리팩토링 R10] 생성 규칙 ─────────────────────────────────────────────
+
+    /**
+     * 새 결재를 임시저장 상태로 만든다.
+     * [리팩토링] 레거시: ApprovalService.create 가 setter 를 줄줄이 부르며 초기값 규칙(긴급이면 우선순위 3, 상태 임시저장)을 직접 정함
+     *   → 생성 규칙을 엔티티의 정적 팩토리로 (기법: 생성자 대신 정적 팩토리 · 이유: 생성 규칙 변경은 결재 흐름과 다른 변경 이유(SRP)).
+     * [보존] 긴급이면 요청 우선순위와 상관없이 3, 상태 임시저장(DB 0), 생성 · 수정 시각 = 지금.
+     *   (레거시는 생성 · 수정 시각에 now() 를 두 번 불렀지만 같은 순간이라 한 값으로 맞춘다)
+     */
+    public static Approval draft(String title, String content, int type, int priority,
+                                 Long drafterId, Long approverId, long amount, boolean urgent, LocalDateTime now) {
+        Approval approval = new Approval();
+        approval.title = title;
+        approval.content = content;
+        approval.type = type;
+        approval.priority = urgent ? HIGH_PRIORITY : priority;
+        approval.status = ApprovalStatus.DRAFT;
+        approval.drafterId = drafterId;
+        approval.approverId = approverId;
+        approval.amount = amount;
+        approval.createdAt = now;
+        approval.updatedAt = now;
+        return approval;
+    }
+
     // ── [리팩토링 R09] 도메인 행위 ───────────────────────────────────────────
 
     /**

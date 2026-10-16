@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  * - 리팩토링 중 이 테스트의 호출 · 기대값은 수정하지 않는다 (CLAUDE.md 특성화 테스트 불변 규칙).
  */
 @DataJpaTest
-@Import({ApprovalService.class, SmtpMailSender.class, FileAuditLogger.class})
+@Import({ApprovalService.class, ApprovalNotifier.class, ApprovalAuditRecorder.class, SmtpMailSender.class, FileAuditLogger.class})
 class ApprovalServiceTest {
 
     private static final int STAFF_ROLE = 1;

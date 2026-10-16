@@ -27,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * - 기대값은 현재 코드를 실행해 관찰한 값이다. 기존 ApprovalServiceTest 6개는 건드리지 않는다.
  */
 @DataJpaTest
-@Import({ApprovalService.class, SmtpMailSender.class, FileAuditLogger.class})
+@Import({ApprovalService.class, ApprovalNotifier.class, ApprovalAuditRecorder.class, SmtpMailSender.class, FileAuditLogger.class})
 class ApprovalServiceSafetyNetTest {
 
     private static final int STAFF_ROLE = 1;

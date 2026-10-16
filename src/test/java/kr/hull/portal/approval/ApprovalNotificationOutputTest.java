@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * - 기대값은 현재 코드의 실제 출력이다. 감사로그의 시각 부분만 실행마다 달라 "] 동작 id=.. by=.." 이후를 비교한다.
  */
 @DataJpaTest
-@Import({ApprovalService.class, SmtpMailSender.class, FileAuditLogger.class})
+@Import({ApprovalService.class, ApprovalNotifier.class, ApprovalAuditRecorder.class, SmtpMailSender.class, FileAuditLogger.class})
 @ExtendWith(OutputCaptureExtension.class)
 class ApprovalNotificationOutputTest {
 
