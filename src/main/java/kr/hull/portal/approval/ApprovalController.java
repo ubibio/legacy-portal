@@ -2,55 +2,60 @@ package kr.hull.portal.approval;
 
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 결재 REST 컨트롤러.
  * [스멜] 컨트롤러가 Map 으로 파라미터를 받아 그대로 흘려보낸다(요청 DTO 부재, 검증 없음).
  * [스멜] 서비스의 매직넘버 action 을 그대로 노출한다.
+ *
+ * [리팩토링] 레거시 Map 요청 · Entity 응답 → 요청 DTO(ApprovalCreateRequest · ApprovalProcessRequest) ·
+ *   응답 DTO(ApprovalResponse) record 로 분리 (기법: DTO 도입 · 스멜 S12 · 백로그 R11)
+ *   - 보존: URL · HTTP 메서드, 요청/응답 JSON 필드 이름 · 순서 · 정수 code, 필드 생략 시 기본값, process 의 200 + 빈 본문
+ *   - 보존: 서비스 public 시그니처(create 8개 인자 · processApproval 4개 인자)는 그대로 - 컨트롤러가 DTO 를 풀어서 넘긴다
+ *   - 남은 것: action 은 API 계약이라 정수 그대로 받는다(서버 내부에서만 의미가 있는 값). 입력 검증은 재설계 단계
+ *   - [이름 개선] service → approvalService
  */
 @RestController
 @RequestMapping("/api/approvals")
 public class ApprovalController {
 
-    private final ApprovalService service;
+    private final ApprovalService approvalService;
 
-    public ApprovalController(ApprovalService service) {
-        this.service = service;
+    public ApprovalController(ApprovalService approvalService) {
+        this.approvalService = approvalService;
     }
 
     @PostMapping
-    public Approval create(@RequestBody Map<String, Object> body) {
-        return service.create(
-                (String) body.get("title"),
-                (String) body.get("content"),
-                (int) body.get("type"),       // type: 1=지출 2=휴가 3=구매 4=기타 — 요청자가 숫자 뜻을 외워야 함
-                (int) body.get("priority"),   // priority: 1=낮음 2=보통 3=높음 — 잘못된 값(5 등)도 그냥 통과
-                ((Number) body.get("drafterId")).longValue(),   // "drafterId"는 그냥 문자열이라 철자가 틀려도 컴파일은 됨 → 실행 때 null 로 터짐(DTO면 컴파일러가 즉시 잡아줌)
-                ((Number) body.get("approverId")).longValue(),
-                ((Number) body.getOrDefault("amount", 0)).longValue(),
-                (boolean) body.getOrDefault("urgent", false)
-        );
+    public ApprovalResponse create(@RequestBody ApprovalCreateRequest request) {
+        Approval approval = approvalService.create(
+                request.title(),
+                request.content(),
+                request.type(),        // [보존] 생략 시 null 언박싱 → NPE(500), 레거시 (int) 형변환과 같은 결과
+                request.priority(),
+                request.drafterId().longValue(),    // [보존] 생략 시 NPE(500), 레거시 ((Number) null).longValue() 와 같은 결과
+                request.approverId().longValue(),
+                request.amountOrZero(),
+                request.isUrgent());
+        return ApprovalResponse.from(approval);
     }
 
-    // action: 1=상신, 2=승인, 3=반려, 9=취소  ([스멜] 매직넘버를 API 가 그대로 강요)
+    // action: 1=상신, 2=승인, 3=반려, 9=취소  ([보존] API 계약 - 정수 그대로)
     @PostMapping("/{id}/process")
-    public void process(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        service.processApproval(
+    public void process(@PathVariable Long id, @RequestBody ApprovalProcessRequest request) {
+        approvalService.processApproval(
                 id,
-                ((Number) body.get("userId")).longValue(),
-                (int) body.get("action"),     // 1=상신 2=승인 3=반려 9=취소 — 요청자(프론트엔드)가 숫자를 외워야 함
-                (String) body.getOrDefault("reason", "")   // reason 키를 안 보내면 빈 문자열, 반려 사유 누락도 통과
-        );
+                request.userId().longValue(),   // [보존] 생략 시 NPE(500)
+                request.action(),
+                request.reasonOrEmpty());
     }
 
     @GetMapping("/drafts/{userId}")
-    public List<Approval> drafts(@PathVariable Long userId) {
-        return service.myDrafts(userId);
+    public List<ApprovalResponse> drafts(@PathVariable Long userId) {
+        return approvalService.myDrafts(userId).stream().map(ApprovalResponse::from).toList();
     }
 
     @GetMapping("/inbox/{userId}")
-    public List<Approval> inbox(@PathVariable Long userId) {
-        return service.myInbox(userId);
+    public List<ApprovalResponse> inbox(@PathVariable Long userId) {
+        return approvalService.myInbox(userId).stream().map(ApprovalResponse::from).toList();
     }
 }
