@@ -1,5 +1,7 @@
 package kr.hull.portal.approval.dto;
 
+import kr.hull.portal.approval.ProcessApprovalCommand;
+
 /**
  * 결재 처리 요청 (POST /api/approvals/{id}/process 본문).
  *
@@ -15,5 +17,13 @@ public record ProcessRequest(Long userId, Integer action, String reason) {
     /** compact 생성자 - [보존] reason 이 없으면 레거시처럼 빈 문자열. */
     public ProcessRequest {
         reason = reason == null ? "" : reason;
+    }
+
+    /**
+     * 웹 요청 → 도메인 명령 변환. [리팩토링 R12] CreateApprovalRequest.toCommand 와 같은 이유.
+     * [보존] userId · action 생략 시 NullPointerException(500) - userId 는 longValue(), action 은 int 언박싱에서 (레거시와 같은 순서).
+     */
+    public ProcessApprovalCommand toCommand() {
+        return new ProcessApprovalCommand(userId.longValue(), action, reason);
     }
 }

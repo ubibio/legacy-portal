@@ -1,5 +1,7 @@
 package kr.hull.portal.approval.dto;
 
+import kr.hull.portal.approval.DraftApprovalCommand;
+
 /**
  * 결재 생성 요청 (POST /api/approvals 본문).
  *
@@ -27,5 +29,25 @@ public record CreateApprovalRequest(
     public CreateApprovalRequest {
         amount = amount == null ? 0L : amount;
         urgent = urgent != null && urgent;
+    }
+
+    /**
+     * 웹 요청 → 도메인 명령 변환.
+     * [리팩토링 R12] 레거시: 컨트롤러가 이 DTO 를 8개 값으로 풀어 서비스에 넘겼다 → 여기서 명령 객체 하나로 바꿔 넘긴다.
+     *   변환을 DTO 가 맡는 이유: 의존 방향을 dto → 도메인 한쪽으로 유지 (도메인 명령은 웹 DTO 를 모른다).
+     * [보존] 필드 생략 시 NullPointerException(500) - type · priority 는 int 로 언박싱, drafterId · approverId 는 longValue() 에서.
+     *   레거시 컨트롤러와 같은 순서(type → priority → drafterId → approverId)로 평가된다.
+     *   이름에 get 접두가 없어 JSON 직렬화 대상이 아니다.
+     */
+    public DraftApprovalCommand toCommand() {
+        return new DraftApprovalCommand(
+                title,
+                content,
+                type,
+                priority,
+                drafterId.longValue(),
+                approverId.longValue(),
+                amount,
+                urgent);
     }
 }

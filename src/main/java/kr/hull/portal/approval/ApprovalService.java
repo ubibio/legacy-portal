@@ -18,7 +18,7 @@ import java.util.List;
  *  5. Tight Coupling       : new SmtpMailSender(), new FileAuditLogger() 직접 생성(DI 없음).    → R02 · R03 해결
  *  6. Feature Envy         : Approval 의 필드를 꺼내 서비스가 직접 상태/금액 규칙을 계산한다.      → R09 해결
  *  7. Primitive Obsession  : 모든 분기를 int 비교로 처리한다.                                  → status · action 해결
- *  8. Long Parameter List  : create() 파라미터 8개.                                          → public 계약이라 유지(R12)
+ *  8. Long Parameter List  : create() 파라미터 8개.                                          → R12 해결 (명령 객체 + 기존 시그니처는 위임)
  *  9. Poor Naming          : d, u, proc, tmp, flag1 같은 약어.                               → 이 클래스는 해결
  * 10. Comment Smell        : 나쁜 이름을 주석으로 변명한다.                                    → 이 클래스는 해결
  * 11. No Tests             : 테스트가 단 한 개도 없다(안전망 부재).                             → 특성화 테스트 58개
@@ -54,16 +54,25 @@ public class ApprovalService {
     }
 
     /**
-     * 결재 생성 (임시저장).
-     * [보존] public 시그니처(파라미터 8개)는 레거시 계약이라 그대로 - 생성 규칙은 Approval.draft 가 맡는다.
+     * 결재 생성 (임시저장) - 명령 객체를 받는 새 진입점. 컨트롤러는 이걸 부른다.
+     * [리팩토링 R12] 인자 8개 → DraftApprovalCommand 하나 (기법: 매개변수 객체 도입). 생성 규칙은 Approval.draft 가 맡는다.
+     */
+    public Approval create(DraftApprovalCommand command) {
+        Approval approval = Approval.draft(command, LocalDateTime.now());
+        approvalRepository.save(approval);
+        approvalAuditRecorder.recordCreated(approval, command.drafterId());
+        return approval;
+    }
+
+    /**
+     * 결재 생성 (임시저장) - 레거시 시그니처.
+     * [보존] public 시그니처(파라미터 8개)는 레거시 계약이라 지우지 않는다 - 특성화 테스트가 이걸 부른다.
+     * [리팩토링 R12] 본문은 값을 명령 객체로 묶어 새 create 로 위임만 한다 (로직이 한 곳에만 있게).
      */
     public Approval create(String title, String content, int type, int priority,
                            Long drafterId, Long approverId, long amount, boolean urgent) {
-        Approval approval = Approval.draft(title, content, type, priority,
-                drafterId, approverId, amount, urgent, LocalDateTime.now());
-        approvalRepository.save(approval);
-        approvalAuditRecorder.recordCreated(approval, drafterId);
-        return approval;
+        return create(new DraftApprovalCommand(title, content, type, priority,
+                drafterId, approverId, amount, urgent));
     }
 
     /**
@@ -73,6 +82,17 @@ public class ApprovalService {
      *   없는 결재 · 없는 사용자 · 정의되지 않은 action 은 예외 없이 조용히 무시 (레거시 동작).
      */
     public void processApproval(Long id, Long userId, int action, String reason) {
+        // [리팩토링 R12] 레거시 시그니처는 명령 객체로 묶어 위임만 한다
+        processApproval(id, new ProcessApprovalCommand(userId, action, reason));
+    }
+
+    /**
+     * 결재 처리 - 명령 객체를 받는 새 진입점. 컨트롤러는 이걸 부른다.
+     * [리팩토링 R12] (id, userId, action, reason) → (처리 대상 id, ProcessApprovalCommand) (기법: 매개변수 객체 도입)
+     * [보존] 아래 동작 전부 레거시와 동일.
+     */
+    public void processApproval(Long id, ProcessApprovalCommand command) {
+        Long userId = command.userId();
         Approval approval = approvalRepository.findById(id).orElse(null);
         if (approval == null) {
             return;   // [보존] 없는 결재 id - 조용히 리턴
@@ -81,14 +101,14 @@ public class ApprovalService {
         if (requester == null) {
             return;   // [보존] 없는 사용자 - 조용히 리턴
         }
-        ApprovalAction approvalAction = ApprovalAction.fromCode(action).orElse(null);
+        ApprovalAction approvalAction = ApprovalAction.fromCode(command.action()).orElse(null);
         if (approvalAction == null) {
             return;   // [보존] 정의되지 않은 action(4~8 등) - 조용히 리턴
         }
         switch (approvalAction) {
             case SUBMIT -> submit(approval, userId);
             case APPROVE -> approve(approval, requester);
-            case REJECT -> reject(approval, requester, reason);
+            case REJECT -> reject(approval, requester, command.reason());
             case CANCEL -> cancel(approval, userId);
         }
     }
