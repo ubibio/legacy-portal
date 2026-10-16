@@ -226,17 +226,15 @@ public class ApprovalService {
         auditLogger.write("[" + now + "] " + action + " id=" + targetId + " by=" + actorId + suffix);
     }
 
-    // [스멜1][스멜10] 화면 표시용 문자열까지 서비스가 만든다. 주석으로 매직넘버를 변명한다.
-    public String statusLabel(Approval approval) {   // [이름 개선] 파라미터 d → approval (호출부 영향 없음)
-        ApprovalStatus status = approval.approvalStatus();   // [이름 개선] s → status. [enum 전환] int → ApprovalStatus
-        String statusLabel;   // [이름 개선] tmp → statusLabel (레거시: '임시?' 이름이라 반환할 상태 표시 문자열이라는 의도가 안 드러났음)
-        if (status == ApprovalStatus.DRAFT) statusLabel = "임시저장";       // [enum 전환] 숫자 비교 → enum 비교. 라벨 문자열은 그대로
-        else if (status == ApprovalStatus.SUBMITTED) statusLabel = "상신";
-        else if (status == ApprovalStatus.APPROVED) statusLabel = "승인";
-        else if (status == ApprovalStatus.REJECTED) statusLabel = "반려";
-        else if (status == ApprovalStatus.CANCELED) statusLabel = "취소";
-        else statusLabel = "알수없음";              // [보존] 레거시 기본값 분기. enum 에선 null 일 때만 도달 [개선 예정: 라벨을 enum 으로 → R06]
-        return statusLabel;
+    /**
+     * 상태 표시 라벨.
+     * [리팩토링] 레거시 if-else 사다리(숫자 → 라벨 번역표) → ApprovalStatus.getLabel() 위임 (기법: 데이터를 enum 으로 이동 · R06 후속)
+     *   - 해결: 서비스가 화면 문자열 번역표를 갖던 것(스멜 S14 · SonarQube S6880 if-else 사슬)
+     * [보존] public 시그니처 그대로, 라벨 문자열 그대로, 상태가 없으면(null) "알수없음" (레거시 기본값 분기)
+     */
+    public String statusLabel(Approval approval) {
+        ApprovalStatus status = approval.approvalStatus();
+        return status == null ? "알수없음" : status.getLabel();
     }
 
     // [스멜6] Feature Envy — Approval 데이터를 꺼내 금액 등급을 서비스가 계산.

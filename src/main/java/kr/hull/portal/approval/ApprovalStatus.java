@@ -12,21 +12,30 @@ package kr.hull.portal.approval;
  */
 public enum ApprovalStatus {
 
-    DRAFT(0),       // 임시저장 - 만들었지만 아직 올리지 않음
-    SUBMITTED(1),   // 상신 - 결재자에게 올림, 처리 대기
-    APPROVED(2),    // 승인
-    REJECTED(3),    // 반려
-    CANCELED(9);    // 취소 (레거시 code 9 - 4~8 은 비어 있음, 값 그대로 보존)
+    // [리팩토링] 화면 라벨을 enum 이 직접 갖는다 - 레거시는 ApprovalService.statusLabel 의 if-else 사다리가 숫자→라벨을 번역했다
+    //   (기법: 데이터와 그 의미를 한곳에 · 이유: 라벨 표가 서비스마다 중복(스멜 S14), 새 상태 추가 시 누락 위험). 라벨 문자열은 레거시 그대로
+    DRAFT(0, "임시저장"),       // 만들었지만 아직 올리지 않음
+    SUBMITTED(1, "상신"),       // 결재자에게 올림, 처리 대기
+    APPROVED(2, "승인"),
+    REJECTED(3, "반려"),
+    CANCELED(9, "취소");        // 레거시 code 9 - 4~8 은 비어 있음, 값 그대로 보존
 
     private final int code;
+    private final String label;
 
-    ApprovalStatus(int code) {
+    ApprovalStatus(int code, String label) {
         this.code = code;
+        this.label = label;
     }
 
     /** DB · JSON 에 쓰는 레거시 정수 code. */
     public int getCode() {
         return code;
+    }
+
+    /** 화면 표시용 한글 라벨 (레거시 statusLabel 이 돌려주던 문자열과 동일). */
+    public String getLabel() {
+        return label;
     }
 
     /**
