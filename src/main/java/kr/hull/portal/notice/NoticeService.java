@@ -1,7 +1,7 @@
 package kr.hull.portal.notice;
 
-import kr.hull.portal.common.FileAuditLogger;
-import kr.hull.portal.common.SmtpMailSender;
+import kr.hull.portal.common.AuditLogger;
+import kr.hull.portal.common.MailSender;
 import kr.hull.portal.user.User;
 import kr.hull.portal.user.UserRepository;
 import org.springframework.stereotype.Service;
@@ -13,7 +13,13 @@ import java.time.format.DateTimeFormatter;
  * 공지 서비스.
  * [스멜4 핵심] ApprovalService 와 거의 동일한 "감사 로그/메일 본문" 로직이 또 복붙되어 있다.
  *             → Day2 '중복 코드 제거 자동화 (공통 모듈 추출)' 실습의 주재료.
- * [스멜5] 역시 협력 객체를 직접 new.
+ * [스멜5] 역시 협력 객체를 직접 new.  → 해결 (아래 [리팩토링 R02 · R03])
+ *
+ * [리팩토링 R02 · R03] 레거시: new SmtpMailSender() · new FileAuditLogger() 직접 생성
+ *   → MailSender · AuditLogger 인터페이스를 생성자로 주입받는다 (기법: 생성자 주입 · 이유: DIP - 구현체(콘솔 · SMTP · 테스트용 가짜)를 바깥에서 갈아끼움)
+ *   - 실행 시 주입되는 구현체: ConsoleMailSender · ConsoleAuditLogger (레거시와 출력 문자열 동일)
+ * [보존] 메일 · 감사로그 문자열, 게시 조건, 조용히 무시하는 동작 전부 그대로 - 협력 객체를 얻는 방법만 바뀌었다.
+ * [남은 것] 감사로그 · 메일 본문 복붙(스멜4), 매직넘버(스멜3)는 공지 특성화 테스트를 만든 뒤 다룬다.
  */
 @Service
 public class NoticeService {
@@ -21,12 +27,16 @@ public class NoticeService {
     private final NoticeRepository repo;
     private final UserRepository userRepo;
 
-    private final SmtpMailSender mail = new SmtpMailSender();
-    private final FileAuditLogger audit = new FileAuditLogger();
+    // [리팩토링] 직접 new → 생성자 주입. 이름도 mail · audit → mailSender · auditLogger (타입이 하는 일을 드러냄)
+    private final MailSender mailSender;
+    private final AuditLogger auditLogger;
 
-    public NoticeService(NoticeRepository repo, UserRepository userRepo) {
+    public NoticeService(NoticeRepository repo, UserRepository userRepo,
+                         MailSender mailSender, AuditLogger auditLogger) {
         this.repo = repo;
         this.userRepo = userRepo;
+        this.mailSender = mailSender;
+        this.auditLogger = auditLogger;
     }
 
     public Notice create(String title, String content, int category, Long writerId, boolean pinned) {
@@ -42,7 +52,7 @@ public class NoticeService {
 
         // [스멜4] ApprovalService.create() 와 사실상 동일한 감사 로그 코드(복붙).
         String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        audit.write("[" + now + "] NOTICE CREATE id=" + n.getId() + " by=" + writerId);
+        auditLogger.write("[" + now + "] NOTICE CREATE id=" + n.getId() + " by=" + writerId);
         return n;
     }
 
@@ -63,11 +73,11 @@ public class NoticeService {
                     for (User member : userRepo.findAll()) {
                         String body = "안녕하세요 " + member.getName() + "님,\n"
                                 + "긴급 공지가 게시되었습니다.\n제목: " + n.getTitle();
-                        mail.send(member.getEmail(), "[긴급공지] " + n.getTitle(), body);
+                        mailSender.send(member.getEmail(), "[긴급공지] " + n.getTitle(), body);
                     }
                 }
                 String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-                audit.write("[" + now + "] NOTICE PUBLISH id=" + n.getId() + " by=" + userId);
+                auditLogger.write("[" + now + "] NOTICE PUBLISH id=" + n.getId() + " by=" + userId);
             }
         }
     }

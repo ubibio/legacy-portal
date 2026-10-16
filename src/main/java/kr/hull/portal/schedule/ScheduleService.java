@@ -1,6 +1,6 @@
 package kr.hull.portal.schedule;
 
-import kr.hull.portal.common.FileAuditLogger;
+import kr.hull.portal.common.AuditLogger;
 import kr.hull.portal.user.User;
 import kr.hull.portal.user.UserRepository;
 import org.springframework.stereotype.Service;
@@ -11,17 +11,25 @@ import java.time.format.DateTimeFormatter;
 /**
  * 일정 서비스.
  * [스멜4] 감사 로그 코드가 또 복붙. [스멜] 시간 겹침(중복 예약) 검증이 길고 읽기 어렵다.
+ *
+ * [리팩토링 R02] 레거시: new FileAuditLogger() 직접 생성
+ *   → AuditLogger 인터페이스를 생성자로 주입받는다 (기법: 생성자 주입 · 이유: DIP - 출력 대상을 바꿔도 이 클래스는 그대로)
+ *   - 실행 시 주입되는 구현체: ConsoleAuditLogger (레거시와 출력 문자열 동일)
+ * [보존] 감사로그 문자열, 검증 · 겹침 판정 · null 반환 · 조용히 무시하는 동작 전부 그대로 - 협력 객체를 얻는 방법만 바뀌었다.
+ * [남은 것] 감사로그 복붙 · 긴 검증 · flag1 이름 · 매직넘버는 일정 특성화 테스트를 만든 뒤 다룬다.
  */
 @Service
 public class ScheduleService {
 
     private final ScheduleRepository repo;
     private final UserRepository userRepo;
-    private final FileAuditLogger audit = new FileAuditLogger();
+    // [리팩토링] 직접 new → 생성자 주입. 이름도 audit → auditLogger
+    private final AuditLogger auditLogger;
 
-    public ScheduleService(ScheduleRepository repo, UserRepository userRepo) {
+    public ScheduleService(ScheduleRepository repo, UserRepository userRepo, AuditLogger auditLogger) {
         this.repo = repo;
         this.userRepo = userRepo;
+        this.auditLogger = auditLogger;
     }
 
     public Schedule create(String title, Long ownerId, LocalDateTime startAt,
@@ -60,7 +68,7 @@ public class ScheduleService {
 
         // [스멜4] 또 복붙된 감사 로그.
         String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        audit.write("[" + now + "] SCHEDULE CREATE id=" + sc.getId() + " by=" + ownerId);
+        auditLogger.write("[" + now + "] SCHEDULE CREATE id=" + sc.getId() + " by=" + ownerId);
         return sc;
     }
 
@@ -74,7 +82,7 @@ public class ScheduleService {
                 sc.setStatus(1);   // 1 = 확정 (CONFIRMED)
                 repo.save(sc);
                 String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-                audit.write("[" + now + "] SCHEDULE CONFIRM id=" + sc.getId() + " by=" + userId);
+                auditLogger.write("[" + now + "] SCHEDULE CONFIRM id=" + sc.getId() + " by=" + userId);
             }
         }
     }

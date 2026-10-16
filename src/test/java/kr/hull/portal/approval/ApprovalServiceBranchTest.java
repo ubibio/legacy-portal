@@ -1,7 +1,7 @@
 package kr.hull.portal.approval;
 
-import kr.hull.portal.common.FileAuditLogger;
-import kr.hull.portal.common.SmtpMailSender;
+import kr.hull.portal.common.ConsoleAuditLogger;
+import kr.hull.portal.common.ConsoleMailSender;
 import kr.hull.portal.user.User;
 import kr.hull.portal.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  *   action 1 상신 · 2 승인 · 3 반려 · 9 취소, type 1 지출 · 3 구매, priority 2 보통 · 3 높음).
  */
 @DataJpaTest
-@Import({ApprovalService.class, ApprovalNotifier.class, ApprovalAuditRecorder.class, SmtpMailSender.class, FileAuditLogger.class})
+@Import({ApprovalService.class, ApprovalNotifier.class, ApprovalAuditRecorder.class, ConsoleMailSender.class, ConsoleAuditLogger.class})
 class ApprovalServiceBranchTest {
 
     private static final int STAFF_ROLE = 1;

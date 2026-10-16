@@ -1,7 +1,7 @@
 package kr.hull.portal.approval;
 
-import kr.hull.portal.common.FileAuditLogger;
-import kr.hull.portal.common.SmtpMailSender;
+import kr.hull.portal.common.ConsoleAuditLogger;
+import kr.hull.portal.common.ConsoleMailSender;
 import kr.hull.portal.user.User;
 import kr.hull.portal.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  * - 리팩토링 중 이 테스트의 호출 · 기대값은 수정하지 않는다 (CLAUDE.md 특성화 테스트 불변 규칙).
  */
 @DataJpaTest
-@Import({ApprovalService.class, ApprovalNotifier.class, ApprovalAuditRecorder.class, SmtpMailSender.class, FileAuditLogger.class})
+@Import({ApprovalService.class, ApprovalNotifier.class, ApprovalAuditRecorder.class, ConsoleMailSender.class, ConsoleAuditLogger.class})
 class ApprovalServiceTest {
 
     private static final int STAFF_ROLE = 1;
