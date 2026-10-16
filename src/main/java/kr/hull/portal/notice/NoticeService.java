@@ -7,7 +7,6 @@ import kr.hull.portal.user.UserRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * 공지 서비스.
@@ -19,7 +18,9 @@ import java.time.format.DateTimeFormatter;
  *   → MailSender · AuditLogger 인터페이스를 생성자로 주입받는다 (기법: 생성자 주입 · 이유: DIP - 구현체(콘솔 · SMTP · 테스트용 가짜)를 바깥에서 갈아끼움)
  *   - 실행 시 주입되는 구현체: ConsoleMailSender · ConsoleAuditLogger (레거시와 출력 문자열 동일)
  * [보존] 메일 · 감사로그 문자열, 게시 조건, 조용히 무시하는 동작 전부 그대로 - 협력 객체를 얻는 방법만 바뀌었다.
- * [남은 것] 감사로그 · 메일 본문 복붙(스멜4), 매직넘버(스멜3)는 공지 특성화 테스트를 만든 뒤 다룬다.
+ * [리팩토링] 감사로그 시각 포맷 · 줄 조립 복붙 2곳 → auditLogger.write(동작, id, 행위자) 위임 (형식은 ConsoleAuditLogger 한 곳)
+ *   - 검증: NoticeServiceCharacterizationTest 가 "] NOTICE CREATE id=.. by=.." 출력을 그대로 고정
+ * [남은 것] 메일 본문 양식 공통화(결재와 유사 중복), 매직넘버(스멜3), 게시 로직을 엔티티로 이동.
  */
 @Service
 public class NoticeService {
@@ -50,9 +51,8 @@ public class NoticeService {
         n.setCreatedAt(LocalDateTime.now());
         repo.save(n);
 
-        // [스멜4] ApprovalService.create() 와 사실상 동일한 감사 로그 코드(복붙).
-        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        auditLogger.write("[" + now + "] NOTICE CREATE id=" + n.getId() + " by=" + writerId);
+        // [리팩토링] 레거시: 시각 포맷 + 줄 조립을 여기서 직접(ApprovalService 와 복붙) → 동작 · 대상 · 행위자만 넘긴다
+        auditLogger.write("NOTICE CREATE", n.getId(), writerId);
         return n;
     }
 
@@ -76,8 +76,7 @@ public class NoticeService {
                         mailSender.send(member.getEmail(), "[긴급공지] " + n.getTitle(), body);
                     }
                 }
-                String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-                auditLogger.write("[" + now + "] NOTICE PUBLISH id=" + n.getId() + " by=" + userId);
+                auditLogger.write("NOTICE PUBLISH", n.getId(), userId);   // [리팩토링] 형식은 ConsoleAuditLogger 가 만든다
             }
         }
     }

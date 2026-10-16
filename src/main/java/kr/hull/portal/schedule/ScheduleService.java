@@ -6,7 +6,6 @@ import kr.hull.portal.user.UserRepository;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * 일정 서비스.
@@ -16,7 +15,9 @@ import java.time.format.DateTimeFormatter;
  *   → AuditLogger 인터페이스를 생성자로 주입받는다 (기법: 생성자 주입 · 이유: DIP - 출력 대상을 바꿔도 이 클래스는 그대로)
  *   - 실행 시 주입되는 구현체: ConsoleAuditLogger (레거시와 출력 문자열 동일)
  * [보존] 감사로그 문자열, 검증 · 겹침 판정 · null 반환 · 조용히 무시하는 동작 전부 그대로 - 협력 객체를 얻는 방법만 바뀌었다.
- * [남은 것] 감사로그 복붙 · 긴 검증 · flag1 이름 · 매직넘버는 일정 특성화 테스트를 만든 뒤 다룬다.
+ * [리팩토링] 감사로그 시각 포맷 · 줄 조립 복붙 2곳 → auditLogger.write(동작, id, 행위자) 위임 (형식은 ConsoleAuditLogger 한 곳)
+ *   - 검증: ScheduleServiceCharacterizationTest 가 "] SCHEDULE CREATE · CONFIRM id=.. by=.." 출력을 그대로 고정
+ * [남은 것] 긴 검증 · flag1 이름 · 매직넘버 · 겹침 판정을 엔티티로 이동.
  */
 @Service
 public class ScheduleService {
@@ -66,9 +67,8 @@ public class ScheduleService {
         sc.setStatus(0);   // status(상태): 0 예정·1 확정·9 취소  [0=예정, 확정 전]
         repo.save(sc);
 
-        // [스멜4] 또 복붙된 감사 로그.
-        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        auditLogger.write("[" + now + "] SCHEDULE CREATE id=" + sc.getId() + " by=" + ownerId);
+        // [리팩토링] 레거시: 또 복붙된 시각 포맷 + 줄 조립 → 동작 · 대상 · 행위자만 넘긴다
+        auditLogger.write("SCHEDULE CREATE", sc.getId(), ownerId);
         return sc;
     }
 
@@ -81,8 +81,7 @@ public class ScheduleService {
             if (sc.getStatus() == 0) {          // status==0 → 예정 상태일 때만
                 sc.setStatus(1);   // 1 = 확정 (CONFIRMED)
                 repo.save(sc);
-                String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-                auditLogger.write("[" + now + "] SCHEDULE CONFIRM id=" + sc.getId() + " by=" + userId);
+                auditLogger.write("SCHEDULE CONFIRM", sc.getId(), userId);   // [리팩토링] 형식은 ConsoleAuditLogger 가 만든다
             }
         }
     }

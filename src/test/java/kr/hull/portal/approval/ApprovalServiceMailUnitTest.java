@@ -8,7 +8,6 @@ import kr.hull.portal.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -18,8 +17,8 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 /**
  * [단위 테스트 - 메일 발송 호출] ApprovalService 가 언제 · 누구에게 · 어떤 메일을 보내라고 "호출"하는지 검증한다.
@@ -27,7 +26,7 @@ import static org.mockito.Mockito.verify;
  * - 특성화 테스트(안전망)와 별개의 새 파일이다. 기존 테스트 6개 파일은 건드리지 않는다.
  * - 협력 객체를 테스트용으로 갈아끼운다 - MailSender · AuditLogger 인터페이스 추출 + 생성자 주입(R02 · R03) 덕분에 가능해졌다.
  *     MailSender  → FakeMailSender      : 실제 발송(콘솔 출력) 없이 send 호출 내용만 기록
- *     AuditLogger → mock(AuditLogger)   : Mockito 가짜 - write 호출 횟수 · 인자만 검증
+ *     AuditLogger → mock(AuditLogger)   : Mockito 가짜 - write(동작, id, 행위자) 호출 인자만 검증 (줄 형식은 ConsoleAuditLogger 몫이라 여기선 안 봄)
  * - 저장소(ApprovalRepository · UserRepository)는 H2 진짜를 쓴다(@DataJpaTest).
  *   결재는 setter 로 상태를 꾸미지 않고 service.create · processApproval 로 실제 흐름대로 준비한다.
  * - 스프링 빈 조립(@Import) 대신 서비스를 직접 new 로 조립한다 - 어떤 가짜가 들어갔는지 테스트 안에서 바로 보이게.
@@ -82,18 +81,18 @@ class ApprovalServiceMailUnitTest {
         return approval;
     }
 
-    private List<String> auditLines(int expectedCount) {
-        ArgumentCaptor<String> lineCaptor = ArgumentCaptor.forClass(String.class);
-        verify(auditLogger, times(expectedCount)).write(lineCaptor.capture());
-        return lineCaptor.getAllValues();
+    private void verifyCreatedAndSubmitted(Approval approval) {
+        verify(auditLogger).write("APPROVAL CREATE", approval.getId(), drafter.getId(), "type=1");
+        verify(auditLogger).write("APPROVAL SUBMIT", approval.getId(), drafter.getId());
     }
 
     @Test
     void 생성만_하면_메일은_보내지_않고_감사로그만_한번_쓴다() {
-        createApproval();
+        Approval approval = createApproval();
 
         assertThat(fakeMailSender.getSentMails()).isEmpty();
-        assertThat(auditLines(1).get(0)).contains("APPROVAL CREATE");
+        verify(auditLogger).write("APPROVAL CREATE", approval.getId(), drafter.getId(), "type=1");
+        verifyNoMoreInteractions(auditLogger);
     }
 
     @Test
@@ -104,7 +103,8 @@ class ApprovalServiceMailUnitTest {
                 "park@hull.kr",
                 "[결재요청] 노트북 구매",
                 "안녕하세요 박팀장님,\n결재 요청이 도착했습니다.\n제목: 노트북 구매\n기안자ID: " + drafter.getId()));
-        assertThat(auditLines(2).get(1)).contains("APPROVAL SUBMIT id=" + approval.getId());
+        verifyCreatedAndSubmitted(approval);
+        verifyNoMoreInteractions(auditLogger);
     }
 
     @Test
@@ -119,7 +119,9 @@ class ApprovalServiceMailUnitTest {
                 "kim@hull.kr",
                 "[결재승인] 노트북 구매",
                 "안녕하세요 김사원님,\n결재가 승인되었습니다.\n제목: 노트북 구매"));
-        assertThat(auditLines(3).get(2)).contains("APPROVAL APPROVE id=" + approval.getId());
+        verifyCreatedAndSubmitted(approval);
+        verify(auditLogger).write("APPROVAL APPROVE", approval.getId(), teamLeader.getId());
+        verifyNoMoreInteractions(auditLogger);
     }
 
     @Test
@@ -134,7 +136,9 @@ class ApprovalServiceMailUnitTest {
                 "kim@hull.kr",
                 "[결재반려] 노트북 구매",
                 "안녕하세요 김사원님,\n결재가 반려되었습니다.\n제목: 노트북 구매\n사유: 예산 초과"));
-        assertThat(auditLines(3).get(2)).contains("APPROVAL REJECT id=" + approval.getId());
+        verifyCreatedAndSubmitted(approval);
+        verify(auditLogger).write("APPROVAL REJECT", approval.getId(), teamLeader.getId());
+        verifyNoMoreInteractions(auditLogger);
     }
 
     @Test
@@ -144,7 +148,9 @@ class ApprovalServiceMailUnitTest {
         approvalService.processApproval(approval.getId(), drafter.getId(), CANCEL_ACTION, null);
 
         assertThat(fakeMailSender.getSentMails()).isEmpty();
-        assertThat(auditLines(2).get(1)).contains("APPROVAL CANCEL id=" + approval.getId());
+        verify(auditLogger).write("APPROVAL CREATE", approval.getId(), drafter.getId(), "type=1");
+        verify(auditLogger).write("APPROVAL CANCEL", approval.getId(), drafter.getId());
+        verifyNoMoreInteractions(auditLogger);
     }
 
     @Test
@@ -155,7 +161,8 @@ class ApprovalServiceMailUnitTest {
 
         // [보존 대상] 레거시 동작 - 권한 없는 승인은 조용히 무시 (상신 때의 메일 1통 · 로그 2줄에서 늘지 않는다)
         assertThat(fakeMailSender.getSentMails()).hasSize(1);
-        auditLines(2);
+        verifyCreatedAndSubmitted(approval);
+        verifyNoMoreInteractions(auditLogger);
     }
 
     @Test
