@@ -1,7 +1,7 @@
 package kr.hull.portal.approval;
 
-import kr.hull.portal.common.FileAuditLogger;
-import kr.hull.portal.common.SmtpMailSender;
+import kr.hull.portal.common.AuditLogger;
+import kr.hull.portal.common.MailSender;
 import kr.hull.portal.user.User;
 import kr.hull.portal.user.UserRepository;
 import org.springframework.stereotype.Service;
@@ -39,13 +39,18 @@ public class ApprovalService {
     private final ApprovalRepository approvalRepository;   // [이름 개선] repo → approvalRepository (어떤 저장소인지 드러냄)
     private final UserRepository userRepository;   // [이름 개선] userRepo → userRepository (약어 제거)
 
-    // [스멜5] 강결합 — 협력 객체를 생성자 주입 없이 직접 new 한다. 테스트에서 갈아끼울 수 없다.
-    private final SmtpMailSender mail = new SmtpMailSender();
-    private final FileAuditLogger audit = new FileAuditLogger();
+    // [리팩토링] 레거시: new SmtpMailSender() · new FileAuditLogger() 직접 생성(스멜5 강결합)
+    //   → 인터페이스(MailSender · AuditLogger) 타입 필드 + 생성자 주입 (기법: DIP · 이유: 구현 교체 · 테스트 대체 가능). 백로그 R02 · R03
+    //   [이름 개선] mail → mailSender, audit → auditLogger
+    private final MailSender mailSender;
+    private final AuditLogger auditLogger;
 
-    public ApprovalService(ApprovalRepository approvalRepository, UserRepository userRepository) {
+    public ApprovalService(ApprovalRepository approvalRepository, UserRepository userRepository,
+                           MailSender mailSender, AuditLogger auditLogger) {
         this.approvalRepository = approvalRepository;
         this.userRepository = userRepository;
+        this.mailSender = mailSender;
+        this.auditLogger = auditLogger;
     }
 
     // [스멜8] 파라미터 8개. [스멜9] 이름이 모호하다.
@@ -64,11 +69,9 @@ public class ApprovalService {
         approval.setUpdatedAt(LocalDateTime.now());
         approvalRepository.save(approval);
 
-        // [스멜4] 감사 로그 기록 — 이 6줄이 submit/approve/reject/cancel 에도 복붙 되어 있다.
-        String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        String line = "[" + now + "] APPROVAL CREATE id=" + approval.getId()
-                + " by=" + drafterId + " type=" + approval.getType();
-        audit.write(line);
+        // [리팩토링] 복붙된 감사로그 조립(스멜4) → writeAudit 공통 메서드 사용 (R02)
+        //   [보존] 생성 로그만 끝에 " type=<유형>" 이 붙는다 - 꼬리(suffix) 인자로 그대로 재현
+        writeAudit("APPROVAL CREATE", approval.getId(), drafterId, " type=" + approval.getType());
         return approval;
     }
 
@@ -124,13 +127,9 @@ public class ApprovalService {
         approvalRepository.save(approval);
 
         // [보존] 결재자에게 [결재요청] 메일 - 결재자가 없으면 생략. 본문 문자열 1글자도 바꾸지 않음
-        User approver = userRepository.findById(approval.getApproverId()).orElse(null);
-        if (approver != null) {
-            String body = "안녕하세요 " + approver.getName() + "님,\n"
-                    + "결재 요청이 도착했습니다.\n제목: " + approval.getTitle()
-                    + "\n기안자ID: " + approval.getDrafterId();
-            mail.send(approver.getEmail(), "[결재요청] " + approval.getTitle(), body);
-        }
+        // [리팩토링] 복붙된 메일 본문 조립(스멜4) → sendApprovalMail 공통 메서드 (R03)
+        sendApprovalMail(approval.getApproverId(), "결재요청", "결재 요청이 도착했습니다.", approval,
+                "\n기안자ID: " + approval.getDrafterId());
         writeAudit("APPROVAL SUBMIT", approval.getId(), requesterId);
     }
 
@@ -152,13 +151,8 @@ public class ApprovalService {
         approval.setUpdatedAt(LocalDateTime.now());
         approvalRepository.save(approval);
 
-        // [보존] 기안자에게 [결재승인] 메일 - 기안자가 없으면 생략
-        User drafter = userRepository.findById(approval.getDrafterId()).orElse(null);
-        if (drafter != null) {
-            String body = "안녕하세요 " + drafter.getName() + "님,\n"
-                    + "결재가 승인되었습니다.\n제목: " + approval.getTitle();
-            mail.send(drafter.getEmail(), "[결재승인] " + approval.getTitle(), body);
-        }
+        // [보존] 기안자에게 [결재승인] 메일 - 기안자가 없으면 생략 (추가 줄 없음)
+        sendApprovalMail(approval.getDrafterId(), "결재승인", "결재가 승인되었습니다.", approval, "");
         writeAudit("APPROVAL APPROVE", approval.getId(), requesterId);
     }
 
@@ -183,13 +177,7 @@ public class ApprovalService {
         approvalRepository.save(approval);
 
         // [보존] 기안자에게 [결재반려] 메일(사유 포함) - 기안자가 없으면 생략
-        User drafter = userRepository.findById(approval.getDrafterId()).orElse(null);
-        if (drafter != null) {
-            String body = "안녕하세요 " + drafter.getName() + "님,\n"
-                    + "결재가 반려되었습니다.\n제목: " + approval.getTitle()
-                    + "\n사유: " + reason;
-            mail.send(drafter.getEmail(), "[결재반려] " + approval.getTitle(), body);
-        }
+        sendApprovalMail(approval.getDrafterId(), "결재반려", "결재가 반려되었습니다.", approval, "\n사유: " + reason);
         writeAudit("APPROVAL REJECT", approval.getId(), requesterId);
     }
 
@@ -211,10 +199,31 @@ public class ApprovalService {
         writeAudit("APPROVAL CANCEL", approval.getId(), requesterId);
     }
 
-    // [스멜4] 그나마 추출했지만 create() 안에는 또 복붙이 남아 있다(불완전한 중복 제거).
-    private void writeAudit(String act, Long id, Long userId) {
+    /**
+     * [리팩토링] 상신 · 승인 · 반려에 복붙돼 있던 메일 본문 조립을 한 곳으로 (기법: 메서드 추출 · 중복 제거, 스멜4 · R03)
+     * [보존] 본문 "안녕하세요 {이름}님,\n{안내문}\n제목: {제목}{추가 줄}", 제목 "[{말머리}] {제목}",
+     *   수신자를 못 찾으면 메일 생략. 수신자 id 가 null 이면 findById 에서 예외가 나는 레거시 동작도 그대로.
+     */
+    private void sendApprovalMail(Long recipientId, String subjectTag, String message, Approval approval, String extraLine) {
+        User recipient = userRepository.findById(recipientId).orElse(null);
+        if (recipient == null) {
+            return;
+        }
+        String body = "안녕하세요 " + recipient.getName() + "님,\n"
+                + message + "\n제목: " + approval.getTitle()
+                + extraLine;
+        mailSender.send(recipient.getEmail(), "[" + subjectTag + "] " + approval.getTitle(), body);
+    }
+
+    // [리팩토링] create() 에 남아 있던 복붙까지 이 메서드로 모음 (R02). [이름 개선] act → action, id → targetId, userId → actorId
+    private void writeAudit(String action, Long targetId, Long actorId) {
+        writeAudit(action, targetId, actorId, "");
+    }
+
+    // [보존] 줄 형식 "[yyyy-MM-dd HH:mm:ss] {동작} id={대상} by={행위자}{꼬리}" - 꼬리는 생성 로그의 " type=.." 용
+    private void writeAudit(String action, Long targetId, Long actorId, String suffix) {
         String now = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-        audit.write("[" + now + "] " + act + " id=" + id + " by=" + userId);
+        auditLogger.write("[" + now + "] " + action + " id=" + targetId + " by=" + actorId + suffix);
     }
 
     // [스멜1][스멜10] 화면 표시용 문자열까지 서비스가 만든다. 주석으로 매직넘버를 변명한다.

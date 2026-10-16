@@ -1,5 +1,7 @@
 package kr.hull.portal.approval;
 
+import kr.hull.portal.common.FileAuditLogger;
+import kr.hull.portal.common.SmtpMailSender;
 import kr.hull.portal.user.User;
 import kr.hull.portal.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 엔티티를 거치지 않고 JDBC 로 컬럼 값을 직접 읽는다 - enum 이름("DRAFT")이나 순번(CANCELED=4)이 저장되면 실패한다.
  */
 @DataJpaTest
-@Import(ApprovalService.class)
+@Import({ApprovalService.class, SmtpMailSender.class, FileAuditLogger.class})
 class ApprovalStatusPersistenceTest {
 
     @Autowired
