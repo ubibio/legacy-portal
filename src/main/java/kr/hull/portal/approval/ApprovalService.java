@@ -138,9 +138,13 @@ public class ApprovalService {
         return status == null ? "알수없음" : status.getLabel();
     }
 
-    /** 금액 등급. [보존] public 시그니처. 계산은 Approval 이 한다(R09). */
+    /**
+     * 금액 등급.
+     * [리팩토링] Move Method - 계산은 AmountGrade enum 이 한다 (Approval.amountGrade() → AmountGrade.of 위임).
+     * [보존] public 시그니처 · 반환 타입 String 그대로, 값은 "S" · "A" · "B" · "C" (enum 이름).
+     */
     public String amountGrade(Approval approval) {
-        return approval.amountGrade();
+        return approval.amountGrade().name();
     }
 
     public List<Approval> myDrafts(Long userId) {

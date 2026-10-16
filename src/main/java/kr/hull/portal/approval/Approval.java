@@ -36,10 +36,8 @@ public class Approval {
     private static final int EXPENSE_TYPE = 1;                            // 유형 1 = 지출
     private static final int HIGH_PRIORITY = 3;                           // 우선순위 3 = 높음
     private static final long HIGH_PRIORITY_EXPENSE_THRESHOLD = 1_000_000L; // 상신 시 우선순위 상향 기준(지출 100만원 이상)
-    // 금액 등급 경계 - 위 상향 기준과 값(100만원)이 같아도 다른 규칙이라 따로 둔다
-    private static final long GRADE_S_MINIMUM_AMOUNT = 10_000_000L;
-    private static final long GRADE_A_MINIMUM_AMOUNT = 1_000_000L;
-    private static final long GRADE_B_MINIMUM_AMOUNT = 100_000L;
+    // [리팩토링] 금액 등급 경계 상수(GRADE_S/A/B_MINIMUM_AMOUNT)는 AmountGrade enum 으로 이동 (Move Method).
+    //   위 상향 기준과 값(100만원)이 같아도 다른 규칙이라 섞지 않는다
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -178,12 +176,13 @@ public class Approval {
         return drafterId != null && drafterId.equals(userId);
     }
 
-    /** 금액 등급 S(1000만원↑) · A(100만원↑) · B(10만원↑) · C. [보존] 경계값은 "이상" 그대로. */
-    public String amountGrade() {
-        if (amount >= GRADE_S_MINIMUM_AMOUNT) return "S";
-        if (amount >= GRADE_A_MINIMUM_AMOUNT) return "A";
-        if (amount >= GRADE_B_MINIMUM_AMOUNT) return "B";
-        return "C";
+    /**
+     * 이 결재의 금액 등급.
+     * [리팩토링] Move Method - 등급 계산(if 사다리 · 경계 상수)은 AmountGrade.of 로 옮기고 여기서는 위임만 한다.
+     *   반환 타입도 String → AmountGrade (등급이 문자열이 아니라 도메인 값이 됨). get 접두가 없어 JSON 에 나가지 않는다.
+     */
+    public AmountGrade amountGrade() {
+        return AmountGrade.of(amount);
     }
 
     // 승인 · 반려 공통 전제조건 - 레거시는 이 3단 검사가 approve · reject 에 복붙돼 있었다(스멜 S08 · 02 문서 D3 · D8)
