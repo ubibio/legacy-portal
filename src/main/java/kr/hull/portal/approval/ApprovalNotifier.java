@@ -1,5 +1,6 @@
 package kr.hull.portal.approval;
 
+import kr.hull.portal.common.MailFormat;
 import kr.hull.portal.common.MailSender;
 import kr.hull.portal.user.User;
 import kr.hull.portal.user.UserRepository;
@@ -32,6 +33,8 @@ public class ApprovalNotifier {
      *     호출부만 봐서는 실제 본문 모양이 안 보였다 → 본문마다 메서드 이름으로 의도를 드러낸다
      *   - 본문 메서드는 private 로 유지 (메일 문구는 이 클래스 밖에 노출하지 않는다)
      * [보존] 본문 · 제목 문자열 1글자도 동일, 수신자 결정 · 못 찾으면 생략 · 수신자 id null 이면 예외 (ApprovalNotificationOutputTest)
+     * [리팩토링] 인사말 · 제목 줄 양식은 common.MailFormat 한 곳으로 (공지 긴급 메일과의 유사 중복 제거).
+     *   이 클래스에는 "누구에게 · 어떤 말머리 · 어떤 안내문 · 끝에 붙일 줄"만 남는다
      */
 
     /** 상신 → 결재자에게 [결재요청]. */
@@ -40,7 +43,7 @@ public class ApprovalNotifier {
         if (approver == null) {
             return;
         }
-        mailSender.send(approver.getEmail(), "[결재요청] " + approval.getTitle(), submittedBody(approver, approval));
+        mailSender.send(approver.getEmail(), MailFormat.subject("결재요청", approval.getTitle()), submittedBody(approver, approval));
     }
 
     /** 승인 → 기안자에게 [결재승인]. */
@@ -49,7 +52,7 @@ public class ApprovalNotifier {
         if (drafter == null) {
             return;
         }
-        mailSender.send(drafter.getEmail(), "[결재승인] " + approval.getTitle(), approvedBody(drafter, approval));
+        mailSender.send(drafter.getEmail(), MailFormat.subject("결재승인", approval.getTitle()), approvedBody(drafter, approval));
     }
 
     /** 반려 → 기안자에게 [결재반려]. */
@@ -58,7 +61,7 @@ public class ApprovalNotifier {
         if (drafter == null) {
             return;
         }
-        mailSender.send(drafter.getEmail(), "[결재반려] " + approval.getTitle(), rejectedBody(drafter, approval, reason));
+        mailSender.send(drafter.getEmail(), MailFormat.subject("결재반려", approval.getTitle()), rejectedBody(drafter, approval, reason));
     }
 
     // [보존] 수신자를 못 찾으면 null → 메일 생략. id 가 null 이면 findById 가 예외 (레거시 동작)
@@ -67,19 +70,16 @@ public class ApprovalNotifier {
     }
 
     private String submittedBody(User approver, Approval approval) {
-        return "안녕하세요 " + approver.getName() + "님,\n"
-                + "결재 요청이 도착했습니다.\n제목: " + approval.getTitle()
+        return MailFormat.body(approver.getName(), "결재 요청이 도착했습니다.", approval.getTitle())
                 + "\n기안자ID: " + approval.getDrafterId();
     }
 
     private String approvedBody(User drafter, Approval approval) {
-        return "안녕하세요 " + drafter.getName() + "님,\n"
-                + "결재가 승인되었습니다.\n제목: " + approval.getTitle();
+        return MailFormat.body(drafter.getName(), "결재가 승인되었습니다.", approval.getTitle());
     }
 
     private String rejectedBody(User drafter, Approval approval, String reason) {
-        return "안녕하세요 " + drafter.getName() + "님,\n"
-                + "결재가 반려되었습니다.\n제목: " + approval.getTitle()
+        return MailFormat.body(drafter.getName(), "결재가 반려되었습니다.", approval.getTitle())
                 + "\n사유: " + reason;
     }
 }

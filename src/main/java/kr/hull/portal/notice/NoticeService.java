@@ -1,6 +1,7 @@
 package kr.hull.portal.notice;
 
 import kr.hull.portal.common.AuditLogger;
+import kr.hull.portal.common.MailFormat;
 import kr.hull.portal.common.MailSender;
 import kr.hull.portal.user.User;
 import kr.hull.portal.user.UserRepository;
@@ -24,7 +25,8 @@ import java.time.LocalDateTime;
  *     생성 초기값은 Notice.draft, 라벨은 notice.statusLabel() - 서비스는 흐름(조회 → 시키기 → 저장 → 메일 → 로그)만 맡는다
  * [보존] public 메서드 시그니처 전부, 메일 · 감사로그 문자열, 저장 → 메일 → 로그 순서, 조용히 무시하는 동작,
  *   null id 예외(findById(null)) - NoticeServiceCharacterizationTest 17개가 고정한다.
- * [남은 것] 메일 본문 양식 공통화(결재와 유사 중복), status · category enum(R07).
+ * [리팩토링] 긴급공지 메일의 인사말 · 제목 양식 → common.MailFormat (결재 알림과의 유사 중복 제거, 문자열은 그대로)
+ * [남은 것] status · category enum(R07) - 범위 밖 숫자를 거절하게 되면 동작 변경이라 보류 (REPORT.md 9장).
  */
 @Service
 public class NoticeService {
@@ -80,9 +82,8 @@ public class NoticeService {
     // [리팩토링] Extract Method - 긴급공지 전 직원 메일. [보존] 수신자 = 전체 사용자(findAll 순서), 제목 · 본문 1글자도 그대로
     private void notifyAllMembersOfEmergency(Notice notice) {
         for (User member : userRepository.findAll()) {
-            String body = "안녕하세요 " + member.getName() + "님,\n"
-                    + "긴급 공지가 게시되었습니다.\n제목: " + notice.getTitle();
-            mailSender.send(member.getEmail(), "[긴급공지] " + notice.getTitle(), body);
+            mailSender.send(member.getEmail(), MailFormat.subject("긴급공지", notice.getTitle()),
+                    MailFormat.body(member.getName(), "긴급 공지가 게시되었습니다.", notice.getTitle()));
         }
     }
 
