@@ -102,6 +102,21 @@ class ApprovalControllerTest {
     }
 
     @Test
+    void 반려_요청에_reason을_빼면_반려사유가_빈_문자열로_저장된다() throws Exception {
+        long approvalId = createApproval(CREATE_REQUEST);
+        mockMvc.perform(post("/api/approvals/" + approvalId + "/process")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":1,\"action\":1}"));
+
+        mockMvc.perform(post("/api/approvals/" + approvalId + "/process")
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":2,\"action\":3}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/approvals/inbox/2"))
+                .andExpect(jsonPath("$[?(@.id == " + approvalId + ")].status").value(3))
+                .andExpect(jsonPath("$[?(@.id == " + approvalId + ")].rejectReason").value(""));
+    }
+
+    @Test
     void 없는_결재_id를_처리해도_200과_빈_본문이다() throws Exception {
         mockMvc.perform(post("/api/approvals/999999/process")
                         .contentType(MediaType.APPLICATION_JSON).content("{\"userId\":2,\"action\":2}"))

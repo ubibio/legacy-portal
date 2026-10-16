@@ -1,4 +1,6 @@
-package kr.hull.portal.approval;
+package kr.hull.portal.approval.dto;
+
+import kr.hull.portal.approval.Approval;
 
 import java.time.LocalDateTime;
 
@@ -9,6 +11,7 @@ import java.time.LocalDateTime;
  *   (기법: 응답 DTO 도입 · 이유: 엔티티 구조를 바꾸면 API 가 같이 바뀌고, 엔티티에 메서드를 더할 때마다 JSON 노출을 신경 써야 했다(스멜 S12). R11)
  * [보존] 필드 12개의 이름 · 순서 · 타입이 레거시 엔티티 JSON 과 같다. status · type · priority 는 정수 code.
  *   ApprovalControllerTest(MockMvc)가 이 형식을 고정한다.
+ *   - 위치: approval.dto 패키지. 엔티티 → DTO 변환은 from() 한 곳에서만 한다.
  */
 public record ApprovalResponse(
         Long id,
@@ -24,7 +27,7 @@ public record ApprovalResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt) {
 
-    static ApprovalResponse from(Approval approval) {
+    public static ApprovalResponse from(Approval approval) {
         return new ApprovalResponse(
                 approval.getId(),
                 approval.getTitle(),
